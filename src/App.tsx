@@ -1,9 +1,12 @@
 /**
  * Componente Principal de la Aplicación y Enrutador de Vistas PWA
+ * Refactorizado con ErrorBoundary y Enrutamiento Catch-All Seguro (NotFound)
  */
 
 import React, { useState, useEffect } from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 
@@ -22,15 +25,30 @@ import { ConfiguracionSistema } from './views/admin/ConfiguracionSistema';
 import { PruebasUnitarias } from './views/admin/PruebasUnitarias';
 
 // Vistas del Conductor (PWA Mobile First)
-import { ConductorHome } from './views/conductor/ConductorHome';
+import { ConductorHome as Home } from './views/conductor/ConductorHome';
 import { RegistrarCarga } from './views/conductor/RegistrarCarga';
 import { MisCargas } from './views/conductor/MisCargas';
 import { MiVehiculo } from './views/conductor/MiVehiculo';
+
+// Páginas del Sistema
+import { NotFound } from './pages/NotFound';
 
 import { BottomNav } from './components/BottomNav';
 import { api } from './services/api';
 import { SolicitudAutorizacion, CargaCombustible } from './types';
 import { PanelLeftOpen } from 'lucide-react';
+
+/**
+ * Rutas declarativas para compatibilidad estándar con React Router
+ */
+export const AppRoutes: React.FC = () => {
+  return (
+    <Routes>
+      <Route path="/" element={<Home setVistaActiva={() => {}} />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
+  );
+};
 
 const MainLayout: React.FC = () => {
   const { usuario, cargando } = useAuth();
@@ -126,7 +144,7 @@ const MainLayout: React.FC = () => {
 
       // Vistas Conductor
       case 'conductor-home':
-        return <ConductorHome setVistaActiva={setVistaActiva} />;
+        return <Home setVistaActiva={setVistaActiva} />;
       case 'conductor-registrar':
         return <RegistrarCarga setVistaActiva={setVistaActiva} />;
       case 'conductor-cargas':
@@ -134,11 +152,14 @@ const MainLayout: React.FC = () => {
       case 'conductor-vehiculo':
         return <MiVehiculo />;
 
+      // Ruta Catch-all segura para vistas no encontradas
       default:
-        return usuario?.rol === 'ADMIN' ? (
-          <AdminDashboard setVistaActiva={setVistaActiva} />
-        ) : (
-          <ConductorHome setVistaActiva={setVistaActiva} />
+        return (
+          <NotFound
+            onGoHome={() =>
+              setVistaActiva(usuario?.rol === 'ADMIN' ? 'admin-dashboard' : 'conductor-home')
+            }
+          />
         );
     }
   };
@@ -201,9 +222,11 @@ const MainLayout: React.FC = () => {
 
 export function App() {
   return (
-    <AuthProvider>
-      <MainLayout />
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <MainLayout />
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
