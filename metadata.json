@@ -1,0 +1,7 @@
+{
+  "name": "Sistema de Control de Combustible y Flota",
+  "description": "Plataforma PWA para gestión de combustible, control de saldos prepago por estación y bomba, autorización y tokens digitales de carga, extracción automática de facturas y odómetros con IA Gemini, métricas de rendimiento y mantenimientos.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
