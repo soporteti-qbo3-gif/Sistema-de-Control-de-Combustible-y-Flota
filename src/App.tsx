@@ -30,8 +30,8 @@ import { RegistrarCarga } from './views/conductor/RegistrarCarga';
 import { MisCargas } from './views/conductor/MisCargas';
 import { MiVehiculo } from './views/conductor/MiVehiculo';
 
-// Páginas del Sistema
-import { NotFound } from './pages/NotFound';
+// Páginas y Componentes del Sistema
+import { NotFound } from './components/NotFound';
 
 import { BottomNav } from './components/BottomNav';
 import { api } from './services/api';
