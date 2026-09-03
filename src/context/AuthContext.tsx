@@ -58,21 +58,45 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
-  const [token, setToken] = useState<string | null>(localStorage.getItem('flota_token'));
+  const [token, setToken] = useState<string | null>(() => {
+    const t = localStorage.getItem('flota_token');
+    return t && t !== 'null' && t !== 'undefined' ? t : null;
+  });
   const [cargando, setCargando] = useState<boolean>(true);
+
+  // Escuchar renovaciones de token automáticas desde el cliente API
+  useEffect(() => {
+    const handleAuthRenewed = (e: Event) => {
+      const customEvt = e as CustomEvent<{ token: string; usuario: Usuario }>;
+      if (customEvt.detail?.token) {
+        setToken(customEvt.detail.token);
+      }
+      if (customEvt.detail?.usuario) {
+        setUsuario(customEvt.detail.usuario);
+      }
+    };
+    window.addEventListener('flota_auth_renewed', handleAuthRenewed);
+    return () => {
+      window.removeEventListener('flota_auth_renewed', handleAuthRenewed);
+    };
+  }, []);
 
   const cargarUsuario = async () => {
     try {
       const storedToken = localStorage.getItem('flota_token');
-      if (storedToken) {
+      if (storedToken && storedToken !== 'null' && storedToken !== 'undefined') {
         const u = await api.getMe();
         setUsuario(u);
+        setToken(storedToken);
+        if (u?.email) {
+          localStorage.setItem('flota_user_email', u.email);
+        }
       } else {
-        // Por defecto iniciar con Conductor para probar el flujo móvil, o Admin si prefiere
+        // Por defecto iniciar con Admin para gestión completa de flota
         await cambiarUsuarioDemo('admin@flota.com');
       }
     } catch (err) {
-      console.warn('Sesión previa no válida, restableciendo a demo:', err);
+      console.warn('Sesión previa no válida, restableciendo a usuario demo:', err);
       localStorage.removeItem('flota_token');
       await cambiarUsuarioDemo('admin@flota.com');
     } finally {
@@ -89,6 +113,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const resp = await api.login(email);
       localStorage.setItem('flota_token', resp.token);
+      localStorage.setItem('flota_user_email', resp.usuario.email);
       setToken(resp.token);
       setUsuario(resp.usuario);
     } finally {
@@ -98,6 +123,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const logout = () => {
     localStorage.removeItem('flota_token');
+    localStorage.removeItem('flota_user_email');
     setToken(null);
     setUsuario(null);
   };
@@ -107,6 +133,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const resp = await api.login(email);
       localStorage.setItem('flota_token', resp.token);
+      localStorage.setItem('flota_user_email', resp.usuario.email);
       setToken(resp.token);
       setUsuario(resp.usuario);
     } catch (e) {

@@ -93,9 +93,11 @@ const MainLayout: React.FC = () => {
   };
 
   useEffect(() => {
-    sincronizarConteos();
-    const interval = setInterval(sincronizarConteos, 10000);
-    return () => clearInterval(interval);
+    if (usuario) {
+      sincronizarConteos();
+      const interval = setInterval(sincronizarConteos, 10000);
+      return () => clearInterval(interval);
+    }
   }, [usuario]);
 
   if (cargando) {

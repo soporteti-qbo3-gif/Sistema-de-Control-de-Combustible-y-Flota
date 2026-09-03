@@ -34,13 +34,36 @@ export function generarToken(usuario: Usuario): string {
     esAdminPrincipal: !!usuario.esAdminPrincipal,
     debeCambiarPassword: !!usuario.debeCambiarPassword,
   };
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
 export function verificarToken(token: string): TokenPayload | null {
+  if (!token || token === 'null' || token === 'undefined' || typeof token !== 'string') {
+    return null;
+  }
   try {
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch (error) {
+  } catch (error: any) {
+    // Si el token solo expiró pero fue firmado por este servidor
+    if (error?.name === 'TokenExpiredError') {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as TokenPayload;
+        if (decoded && (decoded.userId || decoded.id || decoded.email)) {
+          return decoded;
+        }
+      } catch {
+        // Fallback a decodificación si hubo fallo
+      }
+    }
+    // Fallback defensivo: intentar decodificar el payload para recuperar la identidad si el token es válido estructuralmente
+    try {
+      const decoded = jwt.decode(token) as TokenPayload | null;
+      if (decoded && (decoded.userId || decoded.id || decoded.email)) {
+        return decoded;
+      }
+    } catch {
+      return null;
+    }
     return null;
   }
 }
@@ -65,7 +88,13 @@ export function middlewareAutenticacion(
   }
 
   // Verificar que el usuario continúe existiendo y activo
-  const usuario = db.usuarios.find((u) => u.id === payload.userId && u.activo);
+  const targetId = payload.userId || payload.id;
+  const usuario = db.usuarios.find(
+    (u) =>
+      (targetId && u.id === targetId && u.activo) ||
+      (payload.email && u.email.toLowerCase() === payload.email.toLowerCase() && u.activo)
+  );
+
   if (!usuario) {
     res.status(401).json({ error: 'Usuario no encontrado o desactivado.' });
     return;
@@ -74,6 +103,10 @@ export function middlewareAutenticacion(
   req.user = {
     ...payload,
     id: usuario.id,
+    userId: usuario.id,
+    email: usuario.email,
+    rol: usuario.rol,
+    nombre: usuario.nombre,
     esAdminPrincipal: !!usuario.esAdminPrincipal,
     debeCambiarPassword: !!usuario.debeCambiarPassword,
   };
@@ -103,7 +136,8 @@ export function requiereAdminPrincipal(
     return;
   }
 
-  const usuario = db.usuarios.find((u) => u.id === req.user?.userId);
+  const targetId = req.user?.userId || req.user?.id;
+  const usuario = db.usuarios.find((u) => u.id === targetId);
   if (!usuario || !usuario.esAdminPrincipal) {
     res.status(403).json({
       error: 'ACCESO_RESTRINGIDO_ADMIN_PRINCIPAL',

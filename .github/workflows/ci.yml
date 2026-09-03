@@ -35,10 +35,16 @@ jobs:
 
       - name: Pruebas Automatizadas (Vitest)
         run: npm run test
-        continue-on-error: true
 
       - name: Compilación de Producción (Vite + esbuild)
         run: npm run build
         env:
           NODE_ENV: production
           VITE_SITE_URL: http://localhost:3000
+
+      - name: Security Grep
+        run: |
+          if grep -rnEi "GEMINI_API_KEY|sk-[a-zA-Z0-9]{20,}" dist/ --exclude="*.cjs" --exclude="*.map"; then
+            echo "CRITICAL SECURITY LEAK: Claves o secretos detectados en artefactos dist/"
+            exit 1
+          fi
