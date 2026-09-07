@@ -9,8 +9,36 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 import { apiRouter } from './server/routes';
-import { middlewareAutenticacion, AuthenticatedRequest } from './server/auth';
+
+const JWT_SECRET = process.env.JWT_SECRET || 'flota_control_jwt_super_secret_2026';
+
+/**
+ * Middleware simple de verificación de token JWT en encabezado Authorization
+ */
+function verifyToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const authHeader = req.headers['authorization'];
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({
+      error: 'UNAUTHORIZED',
+      message: 'Token no proporcionado o formato inválido (se requiere Bearer <token>).',
+    });
+    return;
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    (req as any).user = decoded;
+    next();
+  } catch (_err) {
+    res.status(401).json({
+      error: 'INVALID_TOKEN',
+      message: 'Token expirado o no válido.',
+    });
+  }
+}
 
 // Prevención de SSRF: rechazar URLs dirigidas a localhost, 127.0.0.1 o rangos privados (10.x, 192.168.x, 172.16-31.x)
 function containsForbiddenSSRF(text: string): boolean {
@@ -23,22 +51,19 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
-  // Middlewares para parsing de JSON con límite máximo de 10mb
+  // Middlewares para parsing de JSON con límite reducido de 50mb a 10mb
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-  // Limitador de peticiones por usuario autenticado para el proxy de Gemini (10 req/min por usuario)
-  const geminiUserLimiter = rateLimit({
+  // Limitador de peticiones para el proxy de Gemini (10 req/min)
+  const geminiLimiter = rateLimit({
     windowMs: 60 * 1000,
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req: any) => {
-      return req.user?.userId || req.user?.id || req.user?.email || req.ip || 'anonymous';
-    },
     message: {
       error: 'TOO_MANY_REQUESTS',
-      message: 'Demasiadas solicitudes al proxy de Gemini por usuario. Por favor intente más tarde.',
+      message: 'Demasiadas solicitudes al proxy de Gemini. Por favor intente más tarde.',
     },
   });
 
@@ -53,8 +78,8 @@ async function startServer() {
   });
 
   // Endpoint Proxy Seguro para Google Gemini API (@google/genai)
-  // Aplica: 1) Verificación JWT (quién llama), 2) Rate limit por usuario, 3) Prevención SSRF y 4) Tope de payload
-  app.post('/api/gemini', middlewareAutenticacion, geminiUserLimiter, async (req: AuthenticatedRequest, res) => {
+  // Aplica: 1) verifyToken, 2) rateLimit de 10 req/min, 3) payload máximo 10mb
+  app.post('/api/gemini', verifyToken, geminiLimiter, async (req, res) => {
     try {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey || apiKey.trim() === '' || apiKey === 'MY_GEMINI_API_KEY') {
