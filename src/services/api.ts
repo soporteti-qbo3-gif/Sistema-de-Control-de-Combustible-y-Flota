@@ -987,6 +987,55 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Observabilidad & Salud del Sistema
+  async getHealth(): Promise<any> {
+    const res = await fetch(`${API_BASE}/health`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async getEstadoServiciosNotificaciones(): Promise<any> {
+    const res = await fetch(`${API_BASE}/notificaciones/estado-servicios`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async testEmailNotificacion(destinatario?: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/notificaciones/test-email`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ destinatario }),
+    });
+    return handleResponse(res);
+  },
+
+  // Auditoría Forense & Anti-Fraude
+  async validarExif(imagenBase64: string, fechaCargaIso?: string, maxHorasTolerancia: number = 8): Promise<any> {
+    const res = await fetch(`${API_BASE}/auditoria/validar-exif`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ imagenBase64, fechaCargaIso, maxHorasTolerancia }),
+    });
+    return handleResponse(res);
+  },
+
+  async verificarCargaAntifraude(datos: {
+    vehiculoId: string;
+    odometroActual: number;
+    litros: number;
+    fotoFacturaBase64?: string;
+    fotoOdometroBase64?: string;
+  }): Promise<any> {
+    const res = await fetch(`${API_BASE}/auditoria/verificar-carga-antifraude`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(datos),
+    });
+    return handleResponse(res);
+  },
+
   // Restaurar demo
   async resetDemo(): Promise<{ message: string }> {
     const res = await fetch(`${API_BASE}/reset-demo`, {

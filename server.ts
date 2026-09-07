@@ -11,6 +11,9 @@ import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import { apiRouter } from './server/routes';
+import { initSentry, isSentryConfigured, setupSentryErrorHandler, captureException } from './server/sentry';
+import { isResendConfigured } from './server/resend';
+import { db } from './server/db';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'flota_control_jwt_super_secret_2026';
 
@@ -51,6 +54,9 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // 🛡️ Inicialización de observabilidad y rastreo de errores con Sentry
+  initSentry(app);
+
   // Middlewares para parsing de JSON con límite reducido de 50mb a 10mb
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -67,13 +73,71 @@ async function startServer() {
     },
   });
 
-  // Endpoint de salud del servidor
+  // 🩺 Endpoint de salud robusto de observabilidad del servidor y subsistemas
   app.get('/api/health', (_req, res) => {
+    const uptimeSegundos = process.uptime();
+    const horas = Math.floor(uptimeSegundos / 3600);
+    const minutos = Math.floor((uptimeSegundos % 3600) / 60);
+    const segundos = Math.floor(uptimeSegundos % 60);
+    const uptimeLegible = `${horas}h ${minutos}m ${segundos}s`;
+
+    const mem = process.memoryUsage();
+
+    const subsistemas = {
+      baseDatos: {
+        estado: 'SALUDABLE',
+        tipo: 'Local JSON Store / Repositorio Flota',
+        registros: {
+          vehiculos: db.vehiculos?.length || 0,
+          cargas: db.cargas?.length || 0,
+          usuarios: db.usuarios?.length || 0,
+          bombasPrepago: db.bombas?.length || 0,
+          solicitudes: db.solicitudes?.length || 0,
+          lecturasOdometro: db.lecturasOdometro?.length || 0,
+        },
+      },
+      observabilidad: {
+        sentry: {
+          configurado: isSentryConfigured(),
+          modo: isSentryConfigured() ? 'PRODUCCION_ACTIVO' : 'LOCAL_SIMULADO',
+        },
+      },
+      notificacionesEmail: {
+        resend: {
+          configurado: isResendConfigured(),
+          modo: isResendConfigured() ? 'PRODUCCION_ACTIVO' : 'LOCAL_SIMULADO',
+        },
+      },
+      inteligenciaArtificial: {
+        gemini: {
+          configurado: Boolean(process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'MY_GEMINI_API_KEY'),
+          modeloPrincipal: 'gemini-3.8-flash',
+        },
+      },
+    };
+
     res.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
-      service: 'Control de Combustible y Flota API',
+      servicio: 'Control de Combustible y Flota API',
       version: '1.0.0',
+      entorno: process.env.NODE_ENV || 'development',
+      tiempoActivo: {
+        segundos: Number(uptimeSegundos.toFixed(2)),
+        formato: uptimeLegible,
+      },
+      rendimientoSistema: {
+        nodeVersion: process.version,
+        plataforma: process.platform,
+        arquitectura: process.arch,
+        memoria: {
+          heapUsadoMB: Number((mem.heapUsed / 1024 / 1024).toFixed(2)),
+          heapTotalMB: Number((mem.heapTotal / 1024 / 1024).toFixed(2)),
+          rssMB: Number((mem.rss / 1024 / 1024).toFixed(2)),
+          externaMB: Number((mem.external / 1024 / 1024).toFixed(2)),
+        },
+      },
+      subsistemas,
     });
   });
 
@@ -157,6 +221,21 @@ async function startServer() {
 
   // Montar rutas de la API REST
   app.use('/api', apiRouter);
+
+  // 🛡️ Middleware de captura de errores con Sentry
+  setupSentryErrorHandler(app);
+
+  // Manejador global de excepciones para la API
+  app.use((err: any, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+    if (res.headersSent) {
+      return next(err);
+    }
+    captureException(err, { location: 'global_express_error_handler' });
+    res.status(err.status || 500).json({
+      error: 'INTERNAL_SERVER_ERROR',
+      message: err.message || 'Error interno inesperado en el servidor.',
+    });
+  });
 
   // Integración con Vite para desarrollo o servir estáticos en producción
   if (process.env.NODE_ENV !== 'production') {

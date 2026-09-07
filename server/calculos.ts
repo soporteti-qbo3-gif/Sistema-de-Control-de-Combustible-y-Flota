@@ -131,6 +131,247 @@ export function procesarMetricasCarga(
   };
 }
 
+/**
+ * 🛡️ VALIDACIÓN ANTI-FRAUDE: CAPACIDAD DE TANQUE
+ * Verifica si los litros despachados superan la capacidad física máxima del vehículo.
+ */
+export function validarCapacidadTanque(
+  litros: number,
+  capacidadTanqueLitros: number
+): {
+  valido: boolean;
+  bloqueante: boolean;
+  motivo?: string;
+  excesoLitros: number;
+} {
+  const numLitros = Number(litros) || 0;
+  const numCapacidad = Number(capacidadTanqueLitros) || 0;
+
+  if (numCapacidad <= 0) {
+    return { valido: true, bloqueante: false, excesoLitros: 0 };
+  }
+
+  const exceso = Number(Math.max(0, numLitros - numCapacidad).toFixed(2));
+
+  // Bloqueante: Si supera en más de 15% la capacidad máxima (físicamente imposible para el tanque)
+  if (numLitros > numCapacidad * 1.15) {
+    return {
+      valido: false,
+      bloqueante: true,
+      excesoLitros: exceso,
+      motivo: `DESPACHO RECHAZADO: Se reportan ${numLitros} L para un vehículo cuya capacidad máxima de tanque es de ${numCapacidad} L (+${exceso} L de exceso). Despacho físicamente imposible o posible carga no autorizada en bidones externos.`,
+    };
+  }
+
+  // Advertencia / Anomalía: Entre 100% y 115% de la capacidad
+  if (numLitros > numCapacidad) {
+    return {
+      valido: true,
+      bloqueante: false,
+      excesoLitros: exceso,
+      motivo: `Sobrellenado detectado: Se despacharon ${numLitros} L en tanque de ${numCapacidad} L (+${exceso} L por encima de capacidad nominal). Requiere verificación.`,
+    };
+  }
+
+  return { valido: true, bloqueante: false, excesoLitros: 0 };
+}
+
+/**
+ * 🛡️ VALIDACIÓN ANTI-FRAUDE: ODÓMETRO
+ * Verifica no decrecimiento y saltos anómalos de kilometraje.
+ */
+export function validarOdometro(
+  odometroActual: number,
+  odometroAnterior: number
+): {
+  valido: boolean;
+  bloqueante: boolean;
+  motivo?: string;
+  kmRecorridos: number;
+} {
+  const numActual = Number(odometroActual);
+  const numAnterior = Number(odometroAnterior);
+
+  if (isNaN(numActual)) {
+    return {
+      valido: false,
+      bloqueante: true,
+      kmRecorridos: 0,
+      motivo: 'El valor de odómetro actual no es un número válido.',
+    };
+  }
+
+  // Odómetro decreciente: estricto rechazo (falsificación o manipulación)
+  if (numActual < numAnterior) {
+    return {
+      valido: false,
+      bloqueante: true,
+      kmRecorridos: 0,
+      motivo: `ODÓMETRO INVÁLIDO: El odómetro actual (${numActual} km) es menor al odómetro anterior (${numAnterior} km). Los odómetros no pueden decrecer.`,
+    };
+  }
+
+  const km = Number((numActual - numAnterior).toFixed(2));
+
+  // Salto irreal de kilometraje en una sola recarga (>2,500 km)
+  if (km > 2500) {
+    return {
+      valido: true,
+      bloqueante: false,
+      kmRecorridos: km,
+      motivo: `Salto inverosímil de kilometraje (+${km} km en un solo despacho). Verificar posible error tipográfico en la lectura del odómetro.`,
+    };
+  }
+
+  return {
+    valido: true,
+    bloqueante: false,
+    kmRecorridos: km,
+  };
+}
+
+export interface ResultadoValidacionAntiFraude {
+  valido: boolean;
+  bloqueante: boolean;
+  motivoBloqueo?: string;
+  nivelRiesgo: 'BAJO' | 'MEDIO' | 'ALTO' | 'CRITICO';
+  esAnomalo: boolean;
+  alertas: string[];
+  detalles: {
+    capacidadTanqueLitros: number;
+    litrosCargados: number;
+    excesoCapacidadLitros: number;
+    superaCapacidad: boolean;
+    odometroAnterior: number;
+    odometroActual: number;
+    kmRecorridos: number;
+    odometroDecreciente: boolean;
+    rendimientoKmL: number;
+    rendimientoTeoricoKmL: number;
+    desviacionRendimientoPorcentaje: number;
+    exifFacturaSospechoso?: boolean;
+    exifOdometroSospechoso?: boolean;
+  };
+  recomendacion?: string;
+}
+
+/**
+ * 🛡️ VALIDACIÓN INTEGRAL ANTI-FRAUDE PARA DESPACHO DE COMBUSTIBLE
+ * Analiza tanque, odómetro, rendimiento teórico y metadatos EXIF.
+ */
+export function validarAntiFraudeCarga(params: {
+  capacidadTanqueLitros: number;
+  odometroAnterior: number;
+  odometroActual: number;
+  litros: number;
+  rendimientoTeoricoKmL?: number;
+  exifFacturaSospechoso?: boolean;
+  exifOdometroSospechoso?: boolean;
+  exifFacturaMotivo?: string;
+  exifOdometroMotivo?: string;
+}): ResultadoValidacionAntiFraude {
+  const alertas: string[] = [];
+  let bloqueante = false;
+  let motivoBloqueo: string | undefined;
+
+  // 1. Evaluación de Odómetro
+  const checkOdo = validarOdometro(params.odometroActual, params.odometroAnterior);
+  if (checkOdo.bloqueante) {
+    bloqueante = true;
+    motivoBloqueo = checkOdo.motivo;
+    alertas.push(checkOdo.motivo!);
+  } else if (checkOdo.motivo) {
+    alertas.push(checkOdo.motivo);
+  }
+
+  // Carga con 0 km recorridos y más de 10L
+  if (checkOdo.kmRecorridos === 0 && params.litros > 10) {
+    alertas.push(`Despacho de ${params.litros} L con 0 km recorridos desde la última carga.`);
+  }
+
+  // 2. Evaluación de Capacidad de Tanque
+  const checkTanque = validarCapacidadTanque(params.litros, params.capacidadTanqueLitros);
+  if (checkTanque.bloqueante) {
+    bloqueante = true;
+    motivoBloqueo = checkTanque.motivo;
+    alertas.push(checkTanque.motivo!);
+  } else if (checkTanque.motivo) {
+    alertas.push(checkTanque.motivo);
+  }
+
+  // 3. Evaluación de Rendimiento
+  const rendTeorico = Number(params.rendimientoTeoricoKmL) || 10;
+  const rendReal = params.litros > 0 ? Number((checkOdo.kmRecorridos / params.litros).toFixed(2)) : 0;
+  let desviacion = 0;
+
+  if (rendTeorico > 0 && rendReal > 0) {
+    desviacion = Number((((rendReal - rendTeorico) / rendTeorico) * 100).toFixed(2));
+    if (desviacion < -40) {
+      alertas.push(
+        `Bajo rendimiento extremo (${rendReal} km/L vs ${rendTeorico} km/L teórico, ${Math.abs(desviacion)}% menor). Alta sospecha de extracción de combustible.`
+      );
+    } else if (desviacion > 120) {
+      alertas.push(
+        `Rendimiento irrealmente alto (${rendReal} km/L vs ${rendTeorico} km/L teórico, +${desviacion}%). Posible manipulación de odómetro.`
+      );
+    }
+  }
+
+  // 4. Evaluación de Metadatos EXIF
+  if (params.exifFacturaSospechoso) {
+    alertas.push(params.exifFacturaMotivo || 'Comprobante con metadatos sospechosos (posible foto reciclada o editada).');
+  }
+  if (params.exifOdometroSospechoso) {
+    alertas.push(params.exifOdometroMotivo || 'Foto de odómetro con metadatos sospechosos.');
+  }
+
+  // Determinación de Nivel de Riesgo
+  let nivelRiesgo: 'BAJO' | 'MEDIO' | 'ALTO' | 'CRITICO' = 'BAJO';
+
+  if (bloqueante || desviacion < -50 || checkTanque.excesoLitros > 15) {
+    nivelRiesgo = 'CRITICO';
+  } else if (alertas.length >= 2 || desviacion < -30 || checkTanque.excesoLitros > 0 || params.exifFacturaSospechoso) {
+    nivelRiesgo = 'ALTO';
+  } else if (alertas.length === 1) {
+    nivelRiesgo = 'MEDIO';
+  }
+
+  const esAnomalo = alertas.length > 0;
+  let recomendacion = 'Proceder con el registro regular.';
+  if (bloqueante) {
+    recomendacion = 'Rechazar la transacción inmediatamente y solicitar aclaración presencial.';
+  } else if (nivelRiesgo === 'ALTO' || nivelRiesgo === 'CRITICO') {
+    recomendacion = 'Requerir validación de administrador, comprobante físico original y prueba de volumetría.';
+  } else if (nivelRiesgo === 'MEDIO') {
+    recomendacion = 'Registrar bajo observación para seguimiento en la próxima recarga.';
+  }
+
+  return {
+    valido: !bloqueante,
+    bloqueante,
+    motivoBloqueo,
+    nivelRiesgo,
+    esAnomalo,
+    alertas,
+    detalles: {
+      capacidadTanqueLitros: params.capacidadTanqueLitros,
+      litrosCargados: params.litros,
+      excesoCapacidadLitros: checkTanque.excesoLitros,
+      superaCapacidad: checkTanque.excesoLitros > 0,
+      odometroAnterior: params.odometroAnterior,
+      odometroActual: params.odometroActual,
+      kmRecorridos: checkOdo.kmRecorridos,
+      odometroDecreciente: checkOdo.bloqueante,
+      rendimientoKmL: rendReal,
+      rendimientoTeoricoKmL: rendTeorico,
+      desviacionRendimientoPorcentaje: desviacion,
+      exifFacturaSospechoso: params.exifFacturaSospechoso,
+      exifOdometroSospechoso: params.exifOdometroSospechoso,
+    },
+    recomendacion,
+  };
+}
+
 export interface ResultadoAuditoriaFraude {
   vehiculoId: string;
   placa: string;
