@@ -932,6 +932,53 @@ export const api = {
     return handleResponse(res);
   },
 
+  // Auditoría de Fraude y Bombas Prepago
+  async getAuditoriaFraude(vehiculoId: string, desde?: string, hasta?: string): Promise<any> {
+    const params = new URLSearchParams();
+    if (desde) params.append('desde', desde);
+    if (hasta) params.append('hasta', hasta);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/auditoria/fraude/${vehiculoId}${query}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async getBombas(): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/bombas`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async getResumenBomba(id: string): Promise<any> {
+    const res = await fetch(`${API_BASE}/bombas/${id}/resumen`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async getLecturasOdometro(vehiculoId: string): Promise<any[]> {
+    const res = await fetch(`${API_BASE}/odometro/lecturas/${vehiculoId}`, {
+      headers: getAuthHeaders(),
+    });
+    return handleResponse(res);
+  },
+
+  async registrarLecturaOdometro(datos: {
+    vehiculoId: string;
+    km: number;
+    fecha?: string;
+    observaciones?: string;
+  }): Promise<any> {
+    const res = await fetch(`${API_BASE}/odometro/lecturas`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(datos),
+    });
+    return handleResponse(res);
+  },
+
   // Pruebas Unitarias
   async ejecutarPruebas(): Promise<TestReport> {
     const res = await fetch(`${API_BASE}/tests/run`, {

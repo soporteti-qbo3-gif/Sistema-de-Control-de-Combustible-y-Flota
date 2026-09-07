@@ -2,12 +2,17 @@
  * Módulo de Autenticación y Autorización JWT
  */
 
+import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { Usuario } from './types';
 import { db } from './db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'flota_control_jwt_super_secret_2026';
+// 🔒 SEGURIDAD: Eliminación obligatoria de fallback hardcodeado. Fallo inmediato si no está definida en el entorno.
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET es obligatorio en el entorno');
+}
+const JWT_SECRET: string = process.env.JWT_SECRET;
 
 export interface TokenPayload {
   id?: string;
@@ -24,6 +29,20 @@ export interface AuthenticatedRequest extends Request {
   usuario?: TokenPayload;
 }
 
+// 🔒 SEGURIDAD: Función de utilidad para mitigación de IDOR (Insecure Direct Object References).
+// Retorna true si el rol es 'ADMIN' o si el userId coincide estrictamente con recursoOwnerId.
+export function verificarPropiedadRecurso(
+  userId: string,
+  recursoOwnerId: string,
+  rol: string
+): boolean {
+  if (!userId || !recursoOwnerId) return false;
+  // 🔒 SEGURIDAD: Privilegio jerárquico global para ADMIN
+  if (rol === 'ADMIN') return true;
+  // 🔒 SEGURIDAD: Verificación estricta de titularidad del recurso para evitar acceso horizontal no autorizado
+  return userId === recursoOwnerId;
+}
+
 export function generarToken(usuario: Usuario): string {
   const payload: TokenPayload = {
     id: usuario.id,
@@ -34,6 +53,7 @@ export function generarToken(usuario: Usuario): string {
     esAdminPrincipal: !!usuario.esAdminPrincipal,
     debeCambiarPassword: !!usuario.debeCambiarPassword,
   };
+  // 🔒 SEGURIDAD: Firma de tokens exclusivamente con clave criptográfica del entorno
   return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
@@ -42,9 +62,10 @@ export function verificarToken(token: string): TokenPayload | null {
     return null;
   }
   try {
+    // 🔒 SEGURIDAD: Verificación de firma criptográfica mediante JWT_SECRET
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
   } catch (error: any) {
-    // Si el token solo expiró pero fue firmado por este servidor
+    // Si el token solo expiró pero fue firmado por este servidor con clave válida
     if (error?.name === 'TokenExpiredError') {
       try {
         const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as TokenPayload;
@@ -52,17 +73,8 @@ export function verificarToken(token: string): TokenPayload | null {
           return decoded;
         }
       } catch {
-        // Fallback a decodificación si hubo fallo
+        // Fallback defensivo
       }
-    }
-    // Fallback defensivo: intentar decodificar el payload para recuperar la identidad si el token es válido estructuralmente
-    try {
-      const decoded = jwt.decode(token) as TokenPayload | null;
-      if (decoded && (decoded.userId || decoded.id || decoded.email)) {
-        return decoded;
-      }
-    } catch {
-      return null;
     }
     return null;
   }
@@ -73,9 +85,10 @@ export function middlewareAutenticacion(
   res: Response,
   next: NextFunction
 ): void {
+  // 🔒 SEGURIDAD: Validación estricta de encabezado de autorización Bearer
   const authHeader = req.headers.authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'No autorizado. Token no proporcionado o inválido.' });
+    res.status(401).json({ error: 'No autorizado. Token no proporcionado o formato inválido.' });
     return;
   }
 
@@ -87,7 +100,7 @@ export function middlewareAutenticacion(
     return;
   }
 
-  // Verificar que el usuario continúe existiendo y activo
+  // 🔒 SEGURIDAD: Comprobación continua en base de datos de usuario activo antes de conceder acceso
   const targetId = payload.userId || payload.id;
   const usuario = db.usuarios.find(
     (u) =>
@@ -96,7 +109,7 @@ export function middlewareAutenticacion(
   );
 
   if (!usuario) {
-    res.status(401).json({ error: 'Usuario no encontrado o desactivado.' });
+    res.status(401).json({ error: 'Usuario no encontrado o desactivado por la administración.' });
     return;
   }
 
@@ -119,6 +132,7 @@ export function requiereAdmin(
   res: Response,
   next: NextFunction
 ): void {
+  // 🔒 SEGURIDAD: Control de acceso basado en roles (RBAC) - Requiere ADMIN
   if (!req.user || req.user.rol !== 'ADMIN') {
     res.status(403).json({ error: 'Acceso denegado. Se requieren privilegios de Administrador.' });
     return;
@@ -131,6 +145,7 @@ export function requiereAdminPrincipal(
   res: Response,
   next: NextFunction
 ): void {
+  // 🔒 SEGURIDAD: Control RBAC estricto de máximo nivel - Administrador Principal
   if (!req.user || req.user.rol !== 'ADMIN') {
     res.status(403).json({ error: 'Acceso denegado. Se requieren privilegios de Administrador.' });
     return;
@@ -147,3 +162,4 @@ export function requiereAdminPrincipal(
   }
   next();
 }
+

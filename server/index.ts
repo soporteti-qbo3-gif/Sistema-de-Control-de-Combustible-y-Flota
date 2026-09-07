@@ -3,9 +3,13 @@
  * Protege la GEMINI_API_KEY en el servidor y sirve el build de producción.
  */
 
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
+// 🔒 SEGURIDAD: Importación de Helmet para cabeceras HTTP seguras y CORS para control estricto de orígenes
+import helmet from 'helmet';
+import cors from 'cors';
 import { GoogleGenAI } from '@google/genai';
 import { apiRouter } from './routes';
 
@@ -15,9 +19,46 @@ const __dirname = path.dirname(__filename);
 export const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-// Middleware de parsing con capacidad para payloads y capturas fotográficas
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+// 🔒 SEGURIDAD: Configuración estricta de Helmet con Content Security Policy (CSP)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+        connectSrc: ["'self'", process.env.VITE_SITE_URL || 'http://localhost:3000'],
+        fontSrc: ["'self'", 'data:'],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  })
+);
+
+// 🔒 SEGURIDAD: Configuración restrictiva de CORS permitiendo únicamente el origen autorizado en VITE_SITE_URL
+const allowedOrigin = process.env.VITE_SITE_URL || 'http://localhost:3000';
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Permitir peticiones sin origen (como curl local, SSR, o aplicaciones cliente del mismo host) o del origen autorizado
+      if (!origin || origin === allowedOrigin) {
+        callback(null, true);
+      } else {
+        callback(new Error('Bloqueado por política restrictiva CORS de PagSurr/QBO3'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  })
+);
+
+// 🔒 SEGURIDAD: Reducción del límite de payload de 50mb a 5mb para mitigar ataques DoS por agotamiento de memoria
+app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: true, limit: '5mb' }));
+
 
 // Healthcheck
 app.get('/api/health', (_req: Request, res: Response) => {

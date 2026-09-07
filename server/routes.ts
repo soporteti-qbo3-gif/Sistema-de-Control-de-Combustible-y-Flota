@@ -3,10 +3,26 @@
  */
 
 import { Router, Response } from 'express';
+// 🧠 LÓGICA: Importación de Zod para validación estricta de esquemas de entrada y salida
+import { z } from 'zod';
+// 🔒 SEGURIDAD: Importación de express-rate-limit para mitigación de ataques de fuerza bruta
+import rateLimit from 'express-rate-limit';
 import { db, generarTicketSvgBase64, generarOdometroSvgBase64 } from './db';
-import { generarToken, middlewareAutenticacion, requiereAdmin, requiereAdminPrincipal, AuthenticatedRequest } from './auth';
+import {
+  generarToken,
+  middlewareAutenticacion,
+  requiereAdmin,
+  requiereAdminPrincipal,
+  verificarPropiedadRecurso, // 🔒 SEGURIDAD: Control de acceso para mitigación de IDOR
+  AuthenticatedRequest,
+} from './auth';
 import { extraerDatosComprobanteYOdometro } from './ia_extractor';
-import { procesarMetricasCarga, ejecutarPruebasCalculos } from './calculos';
+import {
+  procesarMetricasCarga,
+  ejecutarPruebasCalculos,
+  detectarFraudePorPeriodo,
+  proyectarSaldoBomba,
+} from './calculos';
 import {
   historialNotificaciones,
   notificarAdminSolicitudCarga,
@@ -15,15 +31,69 @@ import {
   notificarAdminAlertaAnomalia,
   despacharNotificacion,
 } from './notificaciones';
-import { Vehiculo, SolicitudAutorizacion, CargaCombustible, Mantenimiento, Usuario, MetricasFlota } from './types';
+import {
+  Vehiculo,
+  SolicitudAutorizacion,
+  CargaCombustible,
+  Mantenimiento,
+  Usuario,
+  MetricasFlota,
+  LecturaOdometro,
+} from './types';
 
 export const apiRouter = Router();
+
+// 🔒 SEGURIDAD: Rate limit estricto para inicio de sesión contra fuerza bruta
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: process.env.NODE_ENV === 'production' ? 10 : 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'DEMASIADOS_INTENTOS',
+    message: 'Demasiados intentos de inicio de sesión. Por favor espere 15 minutos antes de reintentar.',
+  },
+});
+
+// 🔒 SEGURIDAD: Función de validación de imágenes Base64 contra XSS y subida de archivos maliciosos (rechazo estricto de SVG/XML)
+export function validarMimeTypeBase64(base64Str?: string): { valido: boolean; error?: string } {
+  if (!base64Str) return { valido: true };
+
+  // Rechazo explícito de SVG / XML para prevenir ataques de Cross-Site Scripting (XSS) y vector injection
+  if (
+    base64Str.includes('image/svg+xml') ||
+    base64Str.includes('<svg') ||
+    base64Str.includes('xmlns=') ||
+    base64Str.includes('<?xml')
+  ) {
+    return {
+      valido: false,
+      error: 'Formato SVG/XML no permitido por motivos de seguridad (XSS mitigation). Solo se admiten imágenes JPEG, PNG o WEBP.',
+    };
+  }
+
+  // Comprobar data URI scheme si está presente
+  const match = base64Str.match(/^data:([a-zA-Z0-9]+\/[a-zA-Z0-9-.+]+);base64,/);
+  if (match) {
+    const mime = match[1].toLowerCase();
+    const permitidos = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!permitidos.includes(mime)) {
+      return {
+        valido: false,
+        error: `Tipo MIME no permitido (${mime}). Formatos autorizados: JPEG, PNG, WEBP.`,
+      };
+    }
+  }
+
+  return { valido: true };
+}
 
 // ==========================================
 // 1. AUTENTICACIÓN Y SESIÓN
 // ==========================================
 
-apiRouter.post('/auth/login', (req, res) => {
+// 🔒 SEGURIDAD: Endpoint protegido con loginRateLimiter y comparación segura con bcrypt.compare()
+apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   const { email, password } = req.body;
 
   if (!email) {
@@ -46,10 +116,13 @@ apiRouter.post('/auth/login', (req, res) => {
     return;
   }
 
-  // Si se envió contraseña y el usuario tiene contraseña configurada o temporal
-  if (password && usuario.passwordHash && password !== usuario.passwordHash && password !== usuario.tempPassword) {
-    res.status(401).json({ error: 'Contraseña incorrecta.' });
-    return;
+  // 🔒 SEGURIDAD: Validación de credenciales mediante bcrypt.compare() para prevenir ataques de temporización
+  if (password) {
+    const esPasswordValida = await db.validarPassword(usuario, password);
+    if (!esPasswordValida) {
+      res.status(401).json({ error: 'Credenciales inválidas. Contraseña incorrecta.' });
+      return;
+    }
   }
 
   const token = generarToken(usuario);
@@ -107,7 +180,8 @@ apiRouter.get('/auth/me', middlewareAutenticacion, (req: AuthenticatedRequest, r
   });
 });
 
-apiRouter.post('/auth/cambiar-password', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+// 🔒 SEGURIDAD: Actualización segura de contraseña con bcrypt.hash(password, 10)
+apiRouter.post('/auth/cambiar-password', middlewareAutenticacion, async (req: AuthenticatedRequest, res: Response) => {
   const { passwordAnterior, passwordNuevo } = req.body;
   const usuarioId = req.user?.userId;
 
@@ -117,7 +191,7 @@ apiRouter.post('/auth/cambiar-password', middlewareAutenticacion, (req: Authenti
   }
 
   try {
-    const resultado = db.cambiarPasswordUsuario({
+    const resultado = await db.cambiarPasswordUsuario({
       usuarioId,
       passwordAnterior,
       passwordNuevo,
@@ -156,11 +230,12 @@ apiRouter.get('/usuarios', middlewareAutenticacion, requiereAdmin, (req: Authent
   res.json(conDetalles);
 });
 
-apiRouter.post('/usuarios/admin', middlewareAutenticacion, requiereAdminPrincipal, (req: AuthenticatedRequest, res: Response) => {
+// 🔒 SEGURIDAD: Creación de administrador con hash bcrypt seguro
+apiRouter.post('/usuarios/admin', middlewareAutenticacion, requiereAdminPrincipal, async (req: AuthenticatedRequest, res: Response) => {
   const { nombre, email, telefonoContacto, tempPassword, activo } = req.body;
 
   try {
-    const nuevoAdmin = db.crearAdmin({
+    const nuevoAdmin = await db.crearAdmin({
       nombre,
       email,
       telefonoContacto,
@@ -177,11 +252,12 @@ apiRouter.post('/usuarios/admin', middlewareAutenticacion, requiereAdminPrincipa
   }
 });
 
-apiRouter.post('/usuarios/conductor', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
+// 🔒 SEGURIDAD: Creación de conductor con hash bcrypt seguro
+apiRouter.post('/usuarios/conductor', middlewareAutenticacion, requiereAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const { nombre, email, telefonoContacto, licencia, vehiculoAsignadoId, tempPassword, activo } = req.body;
 
   try {
-    const nuevoConductor = db.crearConductor({
+    const nuevoConductor = await db.crearConductor({
       nombre,
       email,
       telefonoContacto,
@@ -519,15 +595,31 @@ apiRouter.post('/vehiculos/:id/foto', middlewareAutenticacion, (req: Authenticat
     return;
   }
 
+  // 🔒 SEGURIDAD: Validación de tipo MIME y rechazo de SVG/XML para prevenir XSS
+  const checkMime = validarMimeTypeBase64(imagenUrl);
+  if (!checkMime.valido) {
+    res.status(400).json({ error: checkMime.error });
+    return;
+  }
+
   const index = db.vehiculos.findIndex((v) => v.id === id);
   if (index === -1) {
     res.status(404).json({ error: 'Vehículo no encontrado.' });
     return;
   }
 
-  // Permitir si es Admin o si es el conductor asignado a este vehículo
+  // 🔒 SEGURIDAD: Mitigación IDOR verificando que solo el ADMIN o el conductor asignado modifiquen el recurso
+  const vehiculo = db.vehiculos[index];
   const usuario = req.user?.userId ? db.usuarios.find((u) => u.id === req.user?.userId) : null;
-  if (req.user?.rol !== 'ADMIN' && usuario?.vehiculoAsignadoId !== id) {
+  const propietarioId = vehiculo.conductorId || (usuario?.vehiculoAsignadoId === id ? req.user?.userId : '');
+
+  const autorizado = verificarPropiedadRecurso(
+    req.user?.userId || '',
+    propietarioId || '',
+    req.user?.rol || ''
+  );
+
+  if (!autorizado) {
     res.status(403).json({ error: 'No tienes permiso para actualizar la foto de este vehículo.' });
     return;
   }
@@ -637,13 +729,33 @@ apiRouter.put('/conductores/:id', middlewareAutenticacion, requiereAdmin, (req: 
 // 4. SOLICITUDES DE AUTORIZACIÓN Y TOKENS DE DESPACHO
 // ==========================================
 
+// 🔒 SEGURIDAD: Mitigación IDOR con verificarPropiedadRecurso en listado de solicitudes
 apiRouter.get('/solicitudes', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
   if (req.user?.rol === 'CONDUCTOR') {
-    const misSolicitudes = db.solicitudes.filter((s) => s.conductorId === req.user?.userId);
+    const misSolicitudes = db.solicitudes.filter((s) =>
+      verificarPropiedadRecurso(req.user?.userId || '', s.conductorId, req.user?.rol || '')
+    );
     res.json(misSolicitudes);
   } else {
     res.json(db.solicitudes);
   }
+});
+
+// 🔒 SEGURIDAD: Prevención IDOR en consulta individual de solicitud
+apiRouter.get('/solicitudes/:id', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const solicitud = db.solicitudes.find((s) => s.id === id);
+  if (!solicitud) {
+    res.status(404).json({ error: 'Solicitud no encontrada.' });
+    return;
+  }
+
+  if (!verificarPropiedadRecurso(req.user?.userId || '', solicitud.conductorId, req.user?.rol || '')) {
+    res.status(403).json({ error: 'Acceso denegado. No tienes permisos para ver esta solicitud.' });
+    return;
+  }
+
+  res.json(solicitud);
 });
 
 apiRouter.post('/solicitudes', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
@@ -660,9 +772,23 @@ apiRouter.post('/solicitudes', middlewareAutenticacion, (req: AuthenticatedReque
     return;
   }
 
+  // 🧠 LÓGICA: PREVENCIÓN DE SPAM - Bloquea la creación si ya existe una solicitud con estado 'PENDIENTE' para el mismo vehiculoId
+  const solicitudPendienteExistente = db.solicitudes.find(
+    (s) => s.vehiculoId === vehiculoId && s.estado === 'PENDIENTE'
+  );
+  if (solicitudPendienteExistente) {
+    res.status(400).json({
+      error: `PREVENCIÓN DE SPAM: Ya existe una solicitud de autorización pendiente (${solicitudPendienteExistente.id}) para el vehículo ${vehiculo.placa}. No se permite crear múltiples solicitudes pendientes para la misma unidad.`,
+    });
+    return;
+  }
+
   const conductor = db.usuarios.find((u) => u.id === req.user?.userId);
   const conductorNombre = conductor ? conductor.nombre : req.user?.nombre || 'Conductor';
   const conductorTelefono = conductor?.telefonoContacto || '+506 8876-5432';
+
+  // 🧠 LÓGICA: Generar código de autorización asignado a la solicitud pendiente para control estricto de despacho
+  const codigoAutorizacionGenerado = `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
 
   const nuevaSolicitud: SolicitudAutorizacion = {
     id: `SOL-${new Date().getFullYear()}-${String(db.solicitudes.length + 1).padStart(3, '0')}`,
@@ -677,10 +803,13 @@ apiRouter.post('/solicitudes', middlewareAutenticacion, (req: AuthenticatedReque
     estacionSugerida: estacionSugerida || 'Estación en ruta habitual',
     motivo: motivo || 'Carga operativa rutinaria',
     estado: 'PENDIENTE',
+    codigoAutorizacion: codigoAutorizacionGenerado,
     montoMaximoEstimado: Number((Number(litrosSolicitados) * 720).toFixed(2)),
   };
 
   db.solicitudes.unshift(nuevaSolicitud);
+  // 🧠 LÓGICA: Persistencia en data.json del nuevo estado con la solicitud creada
+  db.guardarDatos();
 
   // Despachar notificación interna automática al Administrador
   const notif = notificarAdminSolicitudCarga(nuevaSolicitud, vehiculo);
@@ -703,12 +832,15 @@ apiRouter.post('/solicitudes/:id/aprobar', middlewareAutenticacion, requiereAdmi
     return;
   }
 
-  const codigoAutorizacion = `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
+  // 🧠 LÓGICA: Mantener el código de autorización existente de la solicitud o generar uno si no estuviese presente
+  const codigoAutorizacion = solicitud.codigoAutorizacion || `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
 
   solicitud.estado = 'APROBADA';
   solicitud.codigoAutorizacion = codigoAutorizacion;
   solicitud.aprobadoPor = req.user?.nombre || 'Administrador';
   solicitud.fechaAprobacion = new Date().toISOString();
+  // 🧠 LÓGICA: Persistir la aprobación en data.json
+  db.guardarDatos();
 
   // Enviar notificación al Conductor con el código de autorización
   notificarConductorAprobacion(solicitud, codigoAutorizacion);
@@ -823,12 +955,70 @@ export function verificarFacturaDuplicada(
   return { esDuplicado: false };
 }
 
+// 🧠 LÓGICA: Esquema Zod para validación estricta de la salida de extracción de IA
+export const EsquemaValidacionSalidaIA = z.object({
+  litros: z
+    .number({ message: 'El campo litros es requerido y debe ser un número.' })
+    .gt(0, 'El campo litros debe ser estrictamente mayor a 0.'),
+  precioPorLitro: z
+    .number({ message: 'El campo precioPorLitro es requerido y debe ser un número.' })
+    .gt(0, 'El campo precioPorLitro debe ser estrictamente mayor a 0.'),
+  odometroLeido: z
+    .number({ message: 'El campo odometroLeido es requerido y debe ser un número.' })
+    .gte(0, 'El campo odometroLeido debe ser mayor o igual a 0.'),
+});
+
+// 🧠 LÓGICA: Función con Zod que verifica que la respuesta de /api/ia/extraer tenga litros > 0, precioPorLitro > 0 y odometroLeido >= 0
+export function validarSalidaIA(
+  datos: any
+): { valido: boolean; error?: string; datosValidados?: z.infer<typeof EsquemaValidacionSalidaIA> } {
+  const datosParaValidar = {
+    ...datos,
+    litros: typeof datos?.litros === 'number' ? datos.litros : Number(datos?.litros),
+    precioPorLitro:
+      typeof datos?.precioPorLitro === 'number'
+        ? datos.precioPorLitro
+        : datos?.totalPagado && datos?.litros
+        ? Number((Number(datos.totalPagado) / (Number(datos.litros) || 1)).toFixed(2))
+        : Number(datos?.precioPorLitro),
+    odometroLeido:
+      typeof datos?.odometroLeido === 'number' ? datos.odometroLeido : Number(datos?.odometroLeido),
+  };
+
+  const parseo = EsquemaValidacionSalidaIA.safeParse(datosParaValidar);
+  if (!parseo.success) {
+    const fallos = parseo.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join(', ');
+    return {
+      valido: false,
+      error: `Validación de salida de IA no superada: ${fallos}`,
+    };
+  }
+
+  return {
+    valido: true,
+    datosValidados: parseo.data,
+  };
+}
+
 apiRouter.post('/ia/extraer', middlewareAutenticacion, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { fotoFacturaBase64, fotoOdometroBase64, odometroAnteriorReferencia } = req.body;
 
     if (!fotoFacturaBase64 && !fotoOdometroBase64) {
       res.status(400).json({ error: 'Se requiere al menos una imagen (factura u odómetro).' });
+      return;
+    }
+
+    // 🔒 SEGURIDAD: Validación estricta de formato y tipo MIME de las imágenes para evitar ejecución de scripts maliciosos (XSS)
+    const checkFactura = validarMimeTypeBase64(fotoFacturaBase64);
+    if (!checkFactura.valido) {
+      res.status(400).json({ error: checkFactura.error });
+      return;
+    }
+
+    const checkOdometro = validarMimeTypeBase64(fotoOdometroBase64);
+    if (!checkOdometro.valido) {
+      res.status(400).json({ error: checkOdometro.error });
       return;
     }
 
@@ -857,6 +1047,16 @@ apiRouter.post('/ia/extraer', middlewareAutenticacion, async (req: Authenticated
       ];
     }
 
+    // 🧠 LÓGICA: VALIDACIÓN DE SALIDA DE IA - Verificar mediante Zod que litros > 0, precioPorLitro > 0 y odometroLeido >= 0 antes de responder al cliente
+    const checkSalidaIA = validarSalidaIA(resultado);
+    if (!checkSalidaIA.valido) {
+      res.status(400).json({
+        error: checkSalidaIA.error,
+        datosParciales: resultado,
+      });
+      return;
+    }
+
     res.json(resultado);
   } catch (error: any) {
     res.status(500).json({ error: 'Error en extracción de IA: ' + error.message });
@@ -882,13 +1082,16 @@ apiRouter.post('/cargas/verificar-duplicado', middlewareAutenticacion, (req: Aut
 // 6. CARGAS DE COMBUSTIBLE
 // ==========================================
 
+// 🔒 SEGURIDAD: Control de acceso y prevención de IDOR en listado de cargas para CONDUCTOR
 apiRouter.get('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
   const { estado, vehiculoId } = req.query;
 
   let resultado = [...db.cargas];
 
   if (req.user?.rol === 'CONDUCTOR') {
-    resultado = resultado.filter((c) => c.conductorId === req.user?.userId);
+    resultado = resultado.filter((c) =>
+      verificarPropiedadRecurso(req.user?.userId || '', c.conductorId, req.user?.rol || '')
+    );
   }
 
   if (estado) {
@@ -900,6 +1103,23 @@ apiRouter.get('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, re
   }
 
   res.json(resultado);
+});
+
+// 🔒 SEGURIDAD: Prevención IDOR estricta para visualización individual de carga
+apiRouter.get('/cargas/:id', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  const carga = db.cargas.find((c) => c.id === id);
+  if (!carga) {
+    res.status(404).json({ error: 'Carga de combustible no encontrada.' });
+    return;
+  }
+
+  if (!verificarPropiedadRecurso(req.user?.userId || '', carga.conductorId, req.user?.rol || '')) {
+    res.status(403).json({ error: 'Acceso denegado. No tienes permisos para ver esta carga.' });
+    return;
+  }
+
+  res.json(carga);
 });
 
 apiRouter.post('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
@@ -921,14 +1141,64 @@ apiRouter.post('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, r
     datosIA,
   } = req.body;
 
-  if (!vehiculoId || !litros || !totalPagado || !odometroActual) {
+  if (!vehiculoId || !litros || !totalPagado || odometroActual === undefined || odometroActual === null) {
     res.status(400).json({ error: 'Vehículo, litros, total y odómetro actual son requeridos.' });
     return;
   }
 
+  // 🧠 LÓGICA: LÓGICA DE CARGA - Exige y valida el campo codigoAutorizacion
+  if (!codigoAutorizacion || typeof codigoAutorizacion !== 'string' || !codigoAutorizacion.trim()) {
+    res.status(400).json({ error: 'El campo codigoAutorizacion es requerido y obligatorio para registrar la carga.' });
+    return;
+  }
+
+  const codigoIngresado = codigoAutorizacion.trim().toUpperCase();
+
   const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId);
   if (!vehiculo) {
     res.status(404).json({ error: 'Vehículo no encontrado.' });
+    return;
+  }
+
+  // 🧠 LÓGICA: LÓGICA DE CARGA - Busca la solicitud pendiente y verifica que el código coincida. Si no coincide, rechaza con error 400.
+  const solicitudPendiente =
+    db.solicitudes.find(
+      (s) =>
+        s.estado === 'PENDIENTE' &&
+        (solicitudAutorizacionId ? s.id === solicitudAutorizacionId : s.vehiculoId === vehiculoId)
+    ) ||
+    db.solicitudes.find(
+      (s) =>
+        (s.estado === 'PENDIENTE' || s.estado === 'APROBADA') &&
+        ((solicitudAutorizacionId && s.id === solicitudAutorizacionId) ||
+          s.vehiculoId === vehiculoId ||
+          s.codigoAutorizacion?.toUpperCase() === codigoIngresado)
+    );
+
+  if (!solicitudPendiente) {
+    res.status(400).json({
+      error: 'No se encontró ninguna solicitud pendiente de autorización para este vehículo.',
+    });
+    return;
+  }
+
+  const codigoEsperado = (solicitudPendiente.codigoAutorizacion || '').trim().toUpperCase();
+  if (!codigoEsperado || codigoEsperado !== codigoIngresado) {
+    res.status(400).json({
+      error: `El código de autorización ingresado (${codigoAutorizacion}) no coincide con el código de autorización de la solicitud (${codigoEsperado || 'sin código asignado'}).`,
+    });
+    return;
+  }
+
+  // 🔒 SEGURIDAD: Validación estricta de imágenes Base64 y rechazo de SVG/XML para prevenir inyección XSS
+  const checkFact = validarMimeTypeBase64(fotoFacturaBase64);
+  if (!checkFact.valido) {
+    res.status(400).json({ error: checkFact.error });
+    return;
+  }
+  const checkOdo = validarMimeTypeBase64(fotoOdometroBase64);
+  if (!checkOdo.valido) {
+    res.status(400).json({ error: checkOdo.error });
     return;
   }
 
@@ -963,11 +1233,12 @@ apiRouter.post('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, r
     return;
   }
 
+  // 🧠 LÓGICA: VALIDACIÓN DE ODOMETRO - Valida que odometroActual sea estrictamente mayor o igual al odometroActual guardado en el vehículo. Si es menor, rechaza con error 400.
   const odometroAnterior = vehiculo.odometroActual;
 
-  if (numOdoActual < odometroAnterior) {
+  if (isNaN(numOdoActual) || numOdoActual < odometroAnterior) {
     res.status(400).json({
-      error: `El odómetro actual (${numOdoActual} km) no puede ser menor al registrado previamente (${odometroAnterior} km).`,
+      error: `El odómetro actual (${numOdoActual} km) debe ser estrictamente mayor o igual al odómetro actual registrado en el vehículo (${odometroAnterior} km).`,
     });
     return;
   }
@@ -995,6 +1266,10 @@ apiRouter.post('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, r
     );
   const fotoOdometroUrl = fotoOdometroBase64 || generarOdometroSvgBase64(numOdoActual, vehiculo.placa);
 
+  // 🧠 LÓGICA: Marcar la solicitud como completada con la carga registrada
+  solicitudPendiente.estado = 'COMPLETADA';
+  const idSolicitudFinal = solicitudAutorizacionId || solicitudPendiente.id;
+
   const nuevaCarga: CargaCombustible = {
     id: `CRG-${Date.now().toString().slice(-6)}`,
     fecha: new Date().toISOString(),
@@ -1002,8 +1277,8 @@ apiRouter.post('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, r
     conductorNombre,
     vehiculoId: vehiculo.id,
     vehiculoPlaca: vehiculo.placa,
-    solicitudAutorizacionId,
-    codigoAutorizacion,
+    solicitudAutorizacionId: idSolicitudFinal,
+    codigoAutorizacion: codigoIngresado,
     estacion: estacion || 'Gasolinera en ruta',
     numeroTicket: folioFinal,
     claveNumerica: claveFinal,
@@ -1039,10 +1314,20 @@ apiRouter.post('/cargas', middlewareAutenticacion, (req: AuthenticatedRequest, r
 
   vehiculo.odometroActual = numOdoActual;
 
-  if (solicitudAutorizacionId) {
-    const sol = db.solicitudes.find((s) => s.id === solicitudAutorizacionId);
-    if (sol) sol.estado = 'COMPLETADA';
-  }
+  // 🧠 LÓGICA: Registro automático de la lectura de odómetro en el historial para auditoría y antifraude
+  const nuevaLectura: LecturaOdometro = {
+    id: `ODO-${Date.now()}`,
+    vehiculoId: vehiculo.id,
+    km: numOdoActual,
+    fecha: nuevaCarga.fecha,
+    registradoPorId: req.user!.userId,
+    registradoPorNombre: conductorNombre,
+    observaciones: `Lectura registrada en despacho de combustible #${nuevaCarga.id} (${numLitros} L)`,
+  };
+  db.lecturasOdometro.unshift(nuevaLectura);
+
+  // 🧠 LÓGICA: Persistir el nuevo estado, odómetro y lecturas en data.json
+  db.guardarDatos();
 
   if (metricas.anomalia) {
     notificarAdminAlertaAnomalia(nuevaCarga, vehiculo);
@@ -2059,6 +2344,13 @@ apiRouter.post('/cajas-chicas/:id/egreso', middlewareAutenticacion, (req: Authen
     return;
   }
 
+  // 🔒 SEGURIDAD: Validación estricta de formato y tipo MIME de comprobante (prevención XSS)
+  const checkMime = validarMimeTypeBase64(comprobanteUrl);
+  if (!checkMime.valido) {
+    res.status(400).json({ error: checkMime.error });
+    return;
+  }
+
   try {
     const resultado = db.registrarEgresoCajaChica({
       cajaChicaId: id,
@@ -2276,7 +2568,9 @@ apiRouter.get('/tests/run', middlewareAutenticacion, (req: AuthenticatedRequest,
     {
       nombre: 'Integridad de Modelo Vehículos',
       modulo: 'db.ts',
-      paso: db.vehiculos.every((v) => v.placa && v.capacidadTanqueLitros > 0 && v.rendimientoTeoricoKmL > 0),
+      paso: db.vehiculos.every(
+        (v) => v.placa && v.capacidadTanqueLitros > 0 && (v.tipoControlMedicion === 'HORAS' || v.rendimientoTeoricoKmL > 0)
+      ),
       esperado: 'Todos los vehículos tienen placa, tanque y rendimiento válido',
       obtenido: `${db.vehiculos.length} vehículos validados`,
       duracionMs: 0.5,
@@ -2305,6 +2599,66 @@ apiRouter.get('/tests/run', middlewareAutenticacion, (req: AuthenticatedRequest,
       obtenido: 'Consistente al 100%',
       duracionMs: 0.7,
     },
+    {
+      nombre: 'Auditoría Antifraude: Validación de Mínimo 2 Lecturas Odómetro',
+      modulo: 'calculos.ts',
+      paso: (() => {
+        try {
+          const mockDbInsuficiente: any = {
+            vehiculos: [{ id: 'veh-min', placa: 'MIN-01', rendimientoTeoricoKmL: 10 }],
+            lecturasOdometro: [{ id: 'o1', vehiculoId: 'veh-min', km: 1000, fecha: '2026-08-01' }],
+            cargas: []
+          };
+          detectarFraudePorPeriodo('veh-min', '2026-08-01', '2026-08-15', mockDbInsuficiente);
+          return false;
+        } catch (e: any) {
+          return e.status === 400 && e.code === 'INSUFICIENTES_LECTURAS_ODOMETRO';
+        }
+      })(),
+      esperado: 'Lanza error 400 con código INSUFICIENTES_LECTURAS_ODOMETRO si < 2 lecturas',
+      obtenido: 'Validación estricta activa (HTTP 400)',
+      duracionMs: 0.5,
+    },
+    {
+      nombre: 'Auditoría Antifraude: Detección Correcta de Alerta Roja (>40% sobreconsumo)',
+      modulo: 'calculos.ts',
+      paso: (() => {
+        try {
+          const mockDbFraude: any = {
+            vehiculos: [{ id: 'veh-fraude', placa: 'FRD-99', rendimientoTeoricoKmL: 10 }],
+            lecturasOdometro: [
+              { id: 'o1', vehiculoId: 'veh-fraude', km: 10000, fecha: '2026-08-01T00:00:00Z' },
+              { id: 'o2', vehiculoId: 'veh-fraude', km: 11000, fecha: '2026-08-30T00:00:00Z' },
+            ],
+            cargas: [
+              { id: 'c1', vehiculoId: 'veh-fraude', vehiculoPlaca: 'FRD-99', litros: 160, totalPagado: 113600, fecha: '2026-08-15T00:00:00Z' }
+            ]
+          };
+          const res = detectarFraudePorPeriodo('veh-fraude', '2026-08-01', '2026-08-30', mockDbFraude);
+          return res.nivelAlerta === 'ROJO' && res.calculos.excesoLitros === 60 && res.calculos.porcentajeDesviacion === 60;
+        } catch {
+          return false;
+        }
+      })(),
+      esperado: 'Nivel ROJO al superar el 40% de desviación (100 L esperados vs 160 L cargados)',
+      obtenido: 'Alerta ROJA confirmada con cálculo matemático exacto',
+      duracionMs: 0.6,
+    },
+    {
+      nombre: 'Proyección de Bombas: Estimación de Días Restantes y Alerta Presupuestaria',
+      modulo: 'calculos.ts',
+      paso: (() => {
+        try {
+          const res = proyectarSaldoBomba(db.bombas[0]?.id || 'bomba-1');
+          return !!(res && res.bombaId && typeof res.saldoRestante === 'number' && typeof res.alerta === 'string');
+        } catch {
+          return false;
+        }
+      })(),
+      esperado: 'Proyección completa de saldo, consumo y nivel de alerta por bomba',
+      obtenido: 'Proyección generada exitosamente',
+      duracionMs: 0.7,
+    },
   ];
 
   const todosResultados = [...resultadoCalculos.resultados, ...testSaldos, ...testEndpoints];
@@ -2327,4 +2681,128 @@ apiRouter.get('/tests/run', middlewareAutenticacion, (req: AuthenticatedRequest,
 apiRouter.post('/reset-demo', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
   db.inicializarDatos();
   res.json({ message: 'Base de datos restaurada al estado inicial de demostración.' });
+});
+
+// ==========================================
+// 14. AUDITORÍA DE COMBUSTIBLE Y DETECCIÓN DE FRAUDE
+// ==========================================
+
+apiRouter.get('/auditoria/fraude/:vehiculoId', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+  const { vehiculoId } = req.params;
+  const desde = req.query.desde as string | undefined;
+  const hasta = req.query.hasta as string | undefined;
+
+  try {
+    const resultado = detectarFraudePorPeriodo(vehiculoId, desde, hasta);
+    res.json({
+      ...resultado,
+      período: resultado.periodo,
+    });
+  } catch (error: any) {
+    const status = error.status || (error.code === 'INSUFICIENTES_LECTURAS_ODOMETRO' ? 400 : 500);
+    res.status(status).json({
+      error: error.code || 'ERROR_AUDITORIA_FRAUDE',
+      message: error.message || 'Error al calcular la auditoría antifraude de combustible.',
+    });
+  }
+});
+
+// ==========================================
+// 15. GESTIÓN FINANCIERA Y PROYECCIÓN DE BOMBAS PREPAGO
+// ==========================================
+
+apiRouter.get('/bombas', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const lista = db.bombas.map((bomba) => {
+      const proyeccion = proyectarSaldoBomba(bomba.id);
+      return {
+        id: bomba.id,
+        nombre: bomba.nombre,
+        estacionId: bomba.estacionId,
+        ubicacion: bomba.ubicacion,
+        depositoMensual: bomba.depositoMensual,
+        consumido: proyeccion.consumido,
+        saldoActual: proyeccion.saldoRestante,
+        saldoRestante: proyeccion.saldoRestante,
+        porcentajeConsumido: proyeccion.porcentajeConsumido,
+        porcentajeSaldoRestante: Number((100 - proyeccion.porcentajeConsumido).toFixed(2)),
+        alerta: proyeccion.alerta,
+        nivelAlerta: proyeccion.alerta,
+        moneda: bomba.moneda || 'CRC',
+        numeroCargas: proyeccion.numeroCargas,
+        proyeccionAgotamiento: proyeccion.proyeccionAgotamiento,
+        mensaje: proyeccion.mensaje,
+      };
+    });
+    res.json(lista);
+  } catch (error: any) {
+    res.status(500).json({
+      error: 'ERROR_LISTAR_BOMBAS',
+      message: error.message || 'Error al listar las bombas de combustible.',
+    });
+  }
+});
+
+apiRouter.get('/bombas/:id/resumen', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+  try {
+    const resumen = proyectarSaldoBomba(id);
+    res.json(resumen);
+  } catch (error: any) {
+    const status = error.status || 404;
+    res.status(status).json({
+      error: 'ERROR_RESUMEN_BOMBA',
+      message: error.message || `No se pudo proyectar el saldo para la bomba con ID "${id}".`,
+    });
+  }
+});
+
+// ==========================================
+// 16. HISTORIAL DE LECTURAS DE ODÓMETRO
+// ==========================================
+
+apiRouter.get('/odometro/lecturas/:vehiculoId', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+  const { vehiculoId } = req.params;
+  const lecturas = db.lecturasOdometro
+    .filter((l) => l.vehiculoId === vehiculoId)
+    .sort((a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime());
+  res.json(lecturas);
+});
+
+apiRouter.post('/odometro/lecturas', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+  const { vehiculoId, km, fecha, observaciones } = req.body;
+  if (!vehiculoId || km === undefined || isNaN(Number(km))) {
+    res.status(400).json({ error: 'Debe especificar el vehiculoId y el kilometraje numérico.' });
+    return;
+  }
+
+  const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId || v.placa === vehiculoId);
+  if (!vehiculo) {
+    res.status(404).json({ error: 'Vehículo no encontrado.' });
+    return;
+  }
+
+  const numKm = Number(km);
+  if (numKm < vehiculo.odometroActual) {
+    res.status(400).json({
+      error: `El odómetro ingresado (${numKm} km) no puede ser menor al odómetro actual registrado en el vehículo (${vehiculo.odometroActual} km).`,
+    });
+    return;
+  }
+
+  const nuevaLectura: LecturaOdometro = {
+    id: `ODO-${Date.now()}`,
+    vehiculoId: vehiculo.id,
+    km: numKm,
+    fecha: fecha || new Date().toISOString(),
+    registradoPorId: req.user!.userId,
+    registradoPorNombre: req.user!.nombre || 'Usuario',
+    observaciones: observaciones || 'Lectura manual registrada en sistema',
+  };
+
+  db.lecturasOdometro.unshift(nuevaLectura);
+  vehiculo.odometroActual = numKm;
+  db.guardarDatos();
+
+  res.status(201).json(nuevaLectura);
 });

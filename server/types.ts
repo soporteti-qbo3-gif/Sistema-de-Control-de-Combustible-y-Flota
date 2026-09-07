@@ -132,6 +132,7 @@ export interface CargaCombustible {
   // Datos crudos de extracción IA
   datosIA?: DatosExtraidosIA;
   anomaliaDetectada?: boolean;
+  anomalia?: boolean;
   motivoAnomalia?: string;
   esDuplicado?: boolean;
   duplicadoDetalle?: string;
@@ -167,6 +168,28 @@ export interface NotificacionSistema {
   leido: boolean;
   prioridad: 'NORMAL' | 'ALTA' | 'URGENTE';
   accionUrl?: string;
+}
+
+export interface LecturaOdometro {
+  id: string;
+  vehiculoId: string;
+  km: number;
+  fecha: string;
+  registradoPorId: string;
+  registradoPorNombre: string;
+  observaciones?: string;
+}
+
+export interface BombaGasolina {
+  id: string;
+  nombre: string;
+  estacionId: string;
+  ubicacion: string;
+  depositoMensual: number;
+  saldoActual: number;
+  moneda: string;
+  activo: boolean;
+  encargadoContacto?: string;
 }
 
 export type TipoMovimientoSaldo = 'deposito' | 'descuento' | 'ajuste' | 'carga_inicial';

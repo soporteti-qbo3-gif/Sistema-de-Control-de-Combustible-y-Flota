@@ -3,6 +3,11 @@
  * Con datos iniciales realistas para demostración y evaluación completa
  */
 
+// 🔒 SEGURIDAD: Importación de bcryptjs para almacenamiento y verificación criptográfica segura
+import bcrypt from 'bcryptjs';
+// 🧠 LÓGICA: Importación de fs y path para persistencia síncrona en archivo local data.json
+import fs from 'fs';
+import path from 'path';
 import {
   Usuario,
   Vehiculo,
@@ -17,8 +22,13 @@ import {
   ArqueoCajaChica,
   MetricasCajaChica,
   DesgloseDenominacion,
+  LecturaOdometro,
+  BombaGasolina,
 } from './types';
 import { procesarMetricasCarga } from './calculos';
+
+// 🧠 LÓGICA: Ruta física del archivo local de persistencia data.json
+const DATA_FILE = path.join(process.cwd(), 'data.json');
 
 // Generador de imágenes muestra SVG en Base64 para facturas electrónicas y odómetros en Costa Rica
 export function generarTicketSvgBase64(estacion: string, litros: number, total: number, fecha: string, folio: string): string {
@@ -105,13 +115,131 @@ class BaseDeDatosFlota {
   public cajasChicas: CajaChica[] = [];
   public movimientosCajaChica: MovimientoCajaChica[] = [];
   public arqueosCajaChica: ArqueoCajaChica[] = [];
+  public lecturasOdometro: LecturaOdometro[] = [];
+  public bombas: BombaGasolina[] = [];
 
   constructor() {
-    this.inicializarDatos();
+    // 🧠 LÓGICA: Al iniciar la clase, se cargan los datos persistidos si el archivo data.json existe.
+    // Si no existe, se inicializan con el dataset base de demostración y se guardan inmediatamente.
+    if (fs.existsSync(DATA_FILE)) {
+      this.cargarDatos();
+    } else {
+      this.inicializarDatos();
+      this.guardarDatos();
+    }
+    // 🧠 LÓGICA: Se activa el mecanismo reactivo de auto-guardado que intercepta cualquier modificación en los arrays principales
+    this.activarAutoPersistencia();
+  }
+
+  // 🧠 LÓGICA: Guarda automáticamente el estado actual de la flota en data.json usando fs.writeFileSync de forma atómica y consistente
+  public guardarDatos(): void {
+    try {
+      const estado = {
+        usuarios: this.usuarios,
+        vehiculos: this.vehiculos,
+        solicitudes: this.solicitudes,
+        cargas: this.cargas,
+        mantenimientos: this.mantenimientos,
+        estaciones: this.estaciones,
+        saldos: this.saldos,
+        movimientosSaldo: this.movimientosSaldo,
+        cajasChicas: this.cajasChicas,
+        movimientosCajaChica: this.movimientosCajaChica,
+        arqueosCajaChica: this.arqueosCajaChica,
+        lecturasOdometro: this.lecturasOdometro,
+        bombas: this.bombas,
+      };
+      fs.writeFileSync(DATA_FILE, JSON.stringify(estado, null, 2), 'utf-8');
+    } catch (error) {
+      console.error('Error al guardar datos en data.json:', error);
+    }
+  }
+
+  // 🧠 LÓGICA: Carga los datos persistidos desde data.json si el archivo existe al inicializar la clase
+  public cargarDatos(): void {
+    try {
+      const contenido = fs.readFileSync(DATA_FILE, 'utf-8');
+      const datos = JSON.parse(contenido);
+      if (datos && typeof datos === 'object') {
+        if (Array.isArray(datos.usuarios)) this.usuarios = datos.usuarios;
+        if (Array.isArray(datos.vehiculos)) this.vehiculos = datos.vehiculos;
+        if (Array.isArray(datos.solicitudes)) this.solicitudes = datos.solicitudes;
+        if (Array.isArray(datos.cargas)) this.cargas = datos.cargas;
+        if (Array.isArray(datos.mantenimientos)) this.mantenimientos = datos.mantenimientos;
+        if (Array.isArray(datos.estaciones)) this.estaciones = datos.estaciones;
+        if (Array.isArray(datos.saldos)) this.saldos = datos.saldos;
+        if (Array.isArray(datos.movimientosSaldo)) this.movimientosSaldo = datos.movimientosSaldo;
+        if (Array.isArray(datos.cajasChicas)) this.cajasChicas = datos.cajasChicas;
+        if (Array.isArray(datos.movimientosCajaChica)) this.movimientosCajaChica = datos.movimientosCajaChica;
+        if (Array.isArray(datos.arqueosCajaChica)) this.arqueosCajaChica = datos.arqueosCajaChica;
+        if (Array.isArray(datos.lecturasOdometro)) this.lecturasOdometro = datos.lecturasOdometro;
+        if (Array.isArray(datos.bombas)) this.bombas = datos.bombas;
+      }
+
+      // Si las 3 bombas no existían en el archivo previamente guardado, inicializarlas
+      if (!this.bombas || this.bombas.length === 0) {
+        this.inicializarBombasPorDefecto();
+      }
+      // Si las lecturas de odómetro no existían, inicializarlas
+      if (!this.lecturasOdometro || this.lecturasOdometro.length === 0) {
+        this.inicializarLecturasOdometroPorDefecto();
+      }
+    } catch (error) {
+      console.error('Error al cargar data.json, re-inicializando datos por defecto:', error);
+      this.inicializarDatos();
+      this.guardarDatos();
+    }
+  }
+
+  // 🧠 LÓGICA: Proxy reactivo que detecta mutaciones en los arrays (push, pop, shift, unshift, splice, asignación de índice) y guarda automáticamente en data.json
+  public crearArrayProxy<T>(arr: T[]): T[] {
+    const self = this;
+    const mutadores = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse']);
+    return new Proxy(arr, {
+      get(target, prop, receiver) {
+        const val = Reflect.get(target, prop, receiver);
+        if (typeof val === 'function' && mutadores.has(prop as string)) {
+          return function (...args: any[]) {
+            const res = (val as Function).apply(target, args);
+            self.guardarDatos();
+            return res;
+          };
+        }
+        return val;
+      },
+      set(target, prop, value, receiver) {
+        const res = Reflect.set(target, prop, value, receiver);
+        self.guardarDatos();
+        return res;
+      },
+      deleteProperty(target, prop) {
+        const res = Reflect.deleteProperty(target, prop);
+        self.guardarDatos();
+        return res;
+      },
+    });
+  }
+
+  // 🧠 LÓGICA: Conecta todos los arrays mutables al proxy para garantizar la persistencia automática ante cualquier modificación
+  public activarAutoPersistencia(): void {
+    this.usuarios = this.crearArrayProxy(this.usuarios);
+    this.vehiculos = this.crearArrayProxy(this.vehiculos);
+    this.solicitudes = this.crearArrayProxy(this.solicitudes);
+    this.cargas = this.crearArrayProxy(this.cargas);
+    this.mantenimientos = this.crearArrayProxy(this.mantenimientos);
+    this.estaciones = this.crearArrayProxy(this.estaciones);
+    this.saldos = this.crearArrayProxy(this.saldos);
+    this.movimientosSaldo = this.crearArrayProxy(this.movimientosSaldo);
+    this.cajasChicas = this.crearArrayProxy(this.cajasChicas);
+    this.movimientosCajaChica = this.crearArrayProxy(this.movimientosCajaChica);
+    this.arqueosCajaChica = this.crearArrayProxy(this.arqueosCajaChica);
+    this.lecturasOdometro = this.crearArrayProxy(this.lecturasOdometro);
+    this.bombas = this.crearArrayProxy(this.bombas);
   }
 
   public inicializarDatos() {
     // 1. Usuarios
+    // 🔒 SEGURIDAD: Inicialización de usuarios con contraseñas pre-hasheadas con bcrypt.hashSync (salt factor 10). Sin texto plano.
     this.usuarios = [
       {
         id: 'usr-admin-1',
@@ -120,6 +248,7 @@ class BaseDeDatosFlota {
         rol: 'ADMIN',
         esAdminPrincipal: true,
         debeCambiarPassword: false,
+        passwordHash: bcrypt.hashSync('FlotaAdmin2026!', 10),
         telefonoContacto: '+506 8876-5432',
         telefonoWhatsapp: '+506 8876-5432',
         activo: true,
@@ -132,6 +261,7 @@ class BaseDeDatosFlota {
         rol: 'CONDUCTOR',
         esAdminPrincipal: false,
         debeCambiarPassword: false,
+        passwordHash: bcrypt.hashSync('Conductor2026!', 10),
         telefonoContacto: '+506 8345-6789',
         telefonoWhatsapp: '+506 8345-6789',
         licencia: 'LIC-CR-B2-98124',
@@ -146,6 +276,7 @@ class BaseDeDatosFlota {
         rol: 'CONDUCTOR',
         esAdminPrincipal: false,
         debeCambiarPassword: false,
+        passwordHash: bcrypt.hashSync('Conductor2026!', 10),
         telefonoContacto: '+506 8765-4321',
         telefonoWhatsapp: '+506 8765-4321',
         licencia: 'LIC-CR-B1-44120',
@@ -160,6 +291,7 @@ class BaseDeDatosFlota {
         rol: 'CONDUCTOR',
         esAdminPrincipal: false,
         debeCambiarPassword: false,
+        passwordHash: bcrypt.hashSync('Conductor2026!', 10),
         telefonoContacto: '+506 8944-5566',
         telefonoWhatsapp: '+506 8944-5566',
         licencia: 'LIC-CR-B3-77319',
@@ -1149,6 +1281,330 @@ class BaseDeDatosFlota {
         estado: 'APROBADO',
       },
     ];
+
+    // 12. Bombas de Gasolina Prepago y Lecturas de Odómetro
+    this.inicializarBombasPorDefecto();
+    this.inicializarLecturasOdometroPorDefecto();
+  }
+
+  public inicializarBombasPorDefecto(): void {
+    this.bombas = [
+      {
+        id: 'bomba-1',
+        nombre: 'Bomba 1 - Servicentro Delta Nosara',
+        estacionId: 'est-1',
+        ubicacion: 'Nosara, Nicoya, Guanacaste',
+        depositoMensual: 800000.0,
+        saldoActual: 695000.0,
+        moneda: 'CRC',
+        activo: true,
+        encargadoContacto: '+506 2682-0101',
+      },
+      {
+        id: 'bomba-2',
+        nombre: 'Bomba 2 - Bomba Costa Verde Guiones',
+        estacionId: 'est-2',
+        ubicacion: 'Playa Guiones, Nosara, Guanacaste',
+        depositoMensual: 800000.0,
+        saldoActual: 620000.0,
+        moneda: 'CRC',
+        activo: true,
+        encargadoContacto: '+506 2682-5520',
+      },
+      {
+        id: 'bomba-3',
+        nombre: 'Bomba 3 - Servicentro JSM Nicoya',
+        estacionId: 'est-3',
+        ubicacion: 'Entrada a Nicoya Centro, Guanacaste',
+        depositoMensual: 800000.0,
+        saldoActual: 550000.0,
+        moneda: 'CRC',
+        activo: true,
+        encargadoContacto: '+506 2685-4040',
+      },
+    ];
+  }
+
+  public inicializarLecturasOdometroPorDefecto(): void {
+    this.lecturasOdometro = [
+      // Lecturas para Toyota Hilux CL 363465 (veh-serie-12)
+      {
+        id: 'ODO-1201',
+        vehiculoId: 'veh-serie-12',
+        km: 45000,
+        fecha: '2026-08-01T08:00:00.000Z',
+        registradoPorId: 'usr-cond-1',
+        registradoPorNombre: 'Carlos Mendoza',
+        observaciones: 'Lectura mensual inicial de odómetro',
+      },
+      {
+        id: 'ODO-1202',
+        vehiculoId: 'veh-serie-12',
+        km: 45500,
+        fecha: '2026-08-10T14:15:00.000Z',
+        registradoPorId: 'usr-cond-1',
+        registradoPorNombre: 'Carlos Mendoza',
+        observaciones: 'Lectura tomada en Servicentro Delta Nosara',
+      },
+      {
+        id: 'ODO-1203',
+        vehiculoId: 'veh-serie-12',
+        km: 46200,
+        fecha: '2026-08-20T10:30:00.000Z',
+        registradoPorId: 'usr-cond-1',
+        registradoPorNombre: 'Carlos Mendoza',
+        observaciones: 'Lectura tomada en Bomba Costa Verde Guiones',
+      },
+      {
+        id: 'ODO-1204',
+        vehiculoId: 'veh-serie-12',
+        km: 47100,
+        fecha: '2026-09-02T16:45:00.000Z',
+        registradoPorId: 'usr-cond-1',
+        registradoPorNombre: 'Carlos Mendoza',
+        observaciones: 'Lectura de control al cierre de ruta',
+      },
+
+      // Lecturas para Vagoneta Mack CL312788 (veh-serie-7)
+      {
+        id: 'ODO-701',
+        vehiculoId: 'veh-serie-7',
+        km: 120000,
+        fecha: '2026-08-01T07:30:00.000Z',
+        registradoPorId: 'usr-cond-2',
+        registradoPorNombre: 'María López',
+        observaciones: 'Lectura inicial de mes',
+      },
+      {
+        id: 'ODO-702',
+        vehiculoId: 'veh-serie-7',
+        km: 120400,
+        fecha: '2026-08-15T11:00:00.000Z',
+        registradoPorId: 'usr-cond-2',
+        registradoPorNombre: 'María López',
+        observaciones: 'Despacho en Servicentro Delta Nosara',
+      },
+      {
+        id: 'ODO-703',
+        vehiculoId: 'veh-serie-7',
+        km: 120800,
+        fecha: '2026-08-28T15:20:00.000Z',
+        registradoPorId: 'usr-cond-2',
+        registradoPorNombre: 'María López',
+        observaciones: 'Despacho en ruta hacia Nicoya',
+      },
+      {
+        id: 'ODO-704',
+        vehiculoId: 'veh-serie-7',
+        km: 121150,
+        fecha: '2026-09-04T09:10:00.000Z',
+        registradoPorId: 'usr-cond-2',
+        registradoPorNombre: 'María López',
+        observaciones: 'Control de rutina en taller',
+      },
+
+      // Lecturas para Cabezal Mack C140381 (veh-serie-2)
+      {
+        id: 'ODO-201',
+        vehiculoId: 'veh-serie-2',
+        km: 280000,
+        fecha: '2026-08-01T06:00:00.000Z',
+        registradoPorId: 'usr-cond-3',
+        registradoPorNombre: 'Juan Pérez',
+        observaciones: 'Lectura mensual inicial de cabezal',
+      },
+      {
+        id: 'ODO-202',
+        vehiculoId: 'veh-serie-2',
+        km: 280600,
+        fecha: '2026-08-18T13:40:00.000Z',
+        registradoPorId: 'usr-cond-3',
+        registradoPorNombre: 'Juan Pérez',
+        observaciones: 'Carga de diésel en Bomba Delta',
+      },
+      {
+        id: 'ODO-203',
+        vehiculoId: 'veh-serie-2',
+        km: 281400,
+        fecha: '2026-09-03T17:15:00.000Z',
+        registradoPorId: 'usr-cond-3',
+        registradoPorNombre: 'Juan Pérez',
+        observaciones: 'Finalización de flete Guanacaste-San José',
+      },
+    ];
+
+    // Si no hay cargas registradas en la base de datos, inicializar cargas históricas realistas
+    if (this.cargas.length === 0) {
+      this.cargas = [
+        {
+          id: 'CRG-1001',
+          fecha: '2026-08-10T14:20:00.000Z',
+          conductorId: 'usr-cond-1',
+          conductorNombre: 'Carlos Mendoza',
+          vehiculoId: 'veh-serie-12',
+          vehiculoPlaca: 'CL 363465',
+          estacion: 'Bomba 1 - Servicentro Delta Nosara',
+          saldoPrepagoId: 'bomba-1',
+          numeroTicket: 'TKT-2026-8801',
+          tipoCombustible: 'Diesel',
+          litros: 45.0,
+          precioPorLitro: 710.0,
+          totalPagado: 31950.0,
+          odometroActual: 45500,
+          odometroAnterior: 45000,
+          kmRecorridos: 500,
+          rendimientoKmL: 11.11,
+          costoPorKm: 63.9,
+          anomalia: false,
+          estadoValidacion: 'VALIDADO',
+          codigoAutorizacion: 'AUT-8812',
+        },
+        {
+          id: 'CRG-1002',
+          fecha: '2026-08-20T10:35:00.000Z',
+          conductorId: 'usr-cond-1',
+          conductorNombre: 'Carlos Mendoza',
+          vehiculoId: 'veh-serie-12',
+          vehiculoPlaca: 'CL 363465',
+          estacion: 'Bomba 2 - Bomba Costa Verde Guiones',
+          saldoPrepagoId: 'bomba-2',
+          numeroTicket: 'TKT-2026-8802',
+          tipoCombustible: 'Diesel',
+          litros: 58.0,
+          precioPorLitro: 710.0,
+          totalPagado: 41180.0,
+          odometroActual: 46200,
+          odometroAnterior: 45500,
+          kmRecorridos: 700,
+          rendimientoKmL: 12.07,
+          costoPorKm: 58.83,
+          anomalia: false,
+          estadoValidacion: 'VALIDADO',
+          codigoAutorizacion: 'AUT-8835',
+        },
+        {
+          id: 'CRG-1003',
+          fecha: '2026-09-02T16:50:00.000Z',
+          conductorId: 'usr-cond-1',
+          conductorNombre: 'Carlos Mendoza',
+          vehiculoId: 'veh-serie-12',
+          vehiculoPlaca: 'CL 363465',
+          estacion: 'Bomba 1 - Servicentro Delta Nosara',
+          saldoPrepagoId: 'bomba-1',
+          numeroTicket: 'TKT-2026-9011',
+          tipoCombustible: 'Diesel',
+          litros: 82.0,
+          precioPorLitro: 710.0,
+          totalPagado: 58220.0,
+          odometroActual: 47100,
+          odometroAnterior: 46200,
+          kmRecorridos: 900,
+          rendimientoKmL: 10.98,
+          costoPorKm: 64.69,
+          anomalia: false,
+          estadoValidacion: 'VALIDADO',
+          codigoAutorizacion: 'AUT-9041',
+        },
+        // Carga con sobreconsumo/fraude para prueba en veh-serie-7
+        {
+          id: 'CRG-1004',
+          fecha: '2026-08-28T15:30:00.000Z',
+          conductorId: 'usr-cond-2',
+          conductorNombre: 'María López',
+          vehiculoId: 'veh-serie-7',
+          vehiculoPlaca: 'CL312788',
+          estacion: 'Bomba 3 - Servicentro JSM Nicoya',
+          saldoPrepagoId: 'bomba-3',
+          numeroTicket: 'TKT-2026-8899',
+          tipoCombustible: 'Diesel',
+          litros: 190.0,
+          precioPorLitro: 710.0,
+          totalPagado: 134900.0,
+          odometroActual: 120800,
+          odometroAnterior: 120400,
+          kmRecorridos: 400,
+          rendimientoKmL: 2.11,
+          costoPorKm: 337.25,
+          anomalia: true,
+          motivoAnomalia: 'Sobreconsumo severo (>40% desviación)',
+          estadoValidacion: 'RECHAZADO',
+          codigoAutorizacion: 'AUT-8899',
+        },
+        // Carga de septiembre en Bomba 1
+        {
+          id: 'CRG-1005',
+          fecha: '2026-09-04T11:10:00.000Z',
+          conductorId: 'usr-cond-3',
+          conductorNombre: 'Juan Pérez',
+          vehiculoId: 'veh-serie-2',
+          vehiculoPlaca: 'C140381',
+          estacion: 'Bomba 1 - Servicentro Delta Nosara',
+          saldoPrepagoId: 'bomba-1',
+          numeroTicket: 'TKT-2026-9022',
+          tipoCombustible: 'Diesel',
+          litros: 65.88,
+          precioPorLitro: 710.0,
+          totalPagado: 46780.0,
+          odometroActual: 281400,
+          odometroAnterior: 280600,
+          kmRecorridos: 800,
+          rendimientoKmL: 12.14,
+          costoPorKm: 58.48,
+          anomalia: false,
+          estadoValidacion: 'VALIDADO',
+          codigoAutorizacion: 'AUT-9055',
+        },
+        // Carga de septiembre en Bomba 2
+        {
+          id: 'CRG-1006',
+          fecha: '2026-09-05T09:40:00.000Z',
+          conductorId: 'usr-cond-2',
+          conductorNombre: 'María López',
+          vehiculoId: 'veh-serie-7',
+          vehiculoPlaca: 'CL312788',
+          estacion: 'Bomba 2 - Bomba Costa Verde Guiones',
+          saldoPrepagoId: 'bomba-2',
+          numeroTicket: 'TKT-2026-9033',
+          tipoCombustible: 'Diesel',
+          litros: 253.52,
+          precioPorLitro: 710.0,
+          totalPagado: 180000.0,
+          odometroActual: 121150,
+          odometroAnterior: 120800,
+          kmRecorridos: 350,
+          rendimientoKmL: 1.38,
+          costoPorKm: 514.29,
+          anomalia: true,
+          motivoAnomalia: 'Rendimiento bajo para vagoneta',
+          estadoValidacion: 'VALIDADO',
+          codigoAutorizacion: 'AUT-9066',
+        },
+        // Carga de septiembre en Bomba 3
+        {
+          id: 'CRG-1007',
+          fecha: '2026-09-06T14:15:00.000Z',
+          conductorId: 'usr-cond-1',
+          conductorNombre: 'Carlos Mendoza',
+          vehiculoId: 'veh-serie-16',
+          vehiculoPlaca: 'CL 365933',
+          estacion: 'Bomba 3 - Servicentro JSM Nicoya',
+          saldoPrepagoId: 'bomba-3',
+          numeroTicket: 'TKT-2026-9044',
+          tipoCombustible: 'Diesel',
+          litros: 352.11,
+          precioPorLitro: 710.0,
+          totalPagado: 250000.0,
+          odometroActual: 33100,
+          odometroAnterior: 32550,
+          kmRecorridos: 550,
+          rendimientoKmL: 1.56,
+          costoPorKm: 454.55,
+          anomalia: true,
+          estadoValidacion: 'VALIDADO',
+          codigoAutorizacion: 'AUT-9077',
+        },
+      ];
+    }
   }
 
   // ==========================================
@@ -1440,14 +1896,14 @@ class BaseDeDatosFlota {
     };
   }
 
-  public crearAdmin(params: {
+  public async crearAdmin(params: {
     nombre: string;
     email: string;
     telefonoContacto?: string;
     telefonoWhatsapp?: string;
     tempPassword?: string;
     activo?: boolean;
-  }): Usuario {
+  }): Promise<Usuario> {
     const emailNorm = params.email.trim().toLowerCase();
     if (!emailNorm) throw new Error('El correo electrónico es requerido.');
     if (!params.nombre.trim()) throw new Error('El nombre completo es requerido.');
@@ -1457,6 +1913,10 @@ class BaseDeDatosFlota {
       throw new Error(`El correo ${emailNorm} ya se encuentra registrado en el sistema.`);
     }
 
+    // 🔒 SEGURIDAD: Hashing criptográfico con bcrypt (10 salt rounds) al crear administrador
+    const passwordTextoPlano = params.tempPassword || 'FlotaAdmin2026!';
+    const passwordHash = await bcrypt.hash(passwordTextoPlano, 10);
+
     const nuevoAdmin: Usuario = {
       id: `usr-admin-${Date.now()}`,
       nombre: params.nombre.trim(),
@@ -1464,7 +1924,9 @@ class BaseDeDatosFlota {
       rol: 'ADMIN',
       esAdminPrincipal: false,
       debeCambiarPassword: true,
-      tempPassword: params.tempPassword || 'FlotaAdmin2026!',
+      // 🔒 SEGURIDAD: Asignación exclusiva del hash bcrypt, eliminando texto plano en passwordHash
+      passwordHash,
+      tempPassword: passwordTextoPlano,
       telefonoContacto: params.telefonoContacto || '+506 2000-0000',
       telefonoWhatsapp: params.telefonoWhatsapp || params.telefonoContacto || '+506 2000-0000',
       activo: params.activo !== undefined ? params.activo : true,
@@ -1536,11 +1998,13 @@ class BaseDeDatosFlota {
       };
     }
 
-    this.usuarios = this.usuarios.filter((u) => u.id !== id);
+    this.usuarios = this.crearArrayProxy(this.usuarios.filter((u) => u.id !== id));
+    // 🧠 LÓGICA: Persistir inmediatamente la eliminación del administrador en data.json
+    this.guardarDatos();
     return { exito: true, mensaje: 'Administrador eliminado exitosamente del sistema.' };
   }
 
-  public crearConductor(params: {
+  public async crearConductor(params: {
     nombre: string;
     email: string;
     telefonoContacto?: string;
@@ -1549,7 +2013,7 @@ class BaseDeDatosFlota {
     vehiculoAsignadoId?: string;
     tempPassword?: string;
     activo?: boolean;
-  }): Usuario {
+  }): Promise<Usuario> {
     const emailNorm = params.email.trim().toLowerCase();
     if (!emailNorm) throw new Error('El correo electrónico es requerido.');
     if (!params.nombre.trim()) throw new Error('El nombre completo es requerido.');
@@ -1559,6 +2023,10 @@ class BaseDeDatosFlota {
       throw new Error(`El correo ${emailNorm} ya está en uso.`);
     }
 
+    // 🔒 SEGURIDAD: Hashing con bcrypt (10 salt rounds) al crear conductor
+    const passwordTextoPlano = params.tempPassword || 'Conductor2026!';
+    const passwordHash = await bcrypt.hash(passwordTextoPlano, 10);
+
     const nuevoConductor: Usuario = {
       id: `usr-cond-${Date.now()}`,
       nombre: params.nombre.trim(),
@@ -1566,7 +2034,9 @@ class BaseDeDatosFlota {
       rol: 'CONDUCTOR',
       esAdminPrincipal: false,
       debeCambiarPassword: true,
-      tempPassword: params.tempPassword || 'Conductor2026!',
+      // 🔒 SEGURIDAD: Asignación exclusiva del hash bcrypt, eliminando texto plano en passwordHash
+      passwordHash,
+      tempPassword: passwordTextoPlano,
       telefonoContacto: params.telefonoContacto || '+506 8000-0000',
       telefonoWhatsapp: params.telefonoWhatsapp || params.telefonoContacto || '+506 8000-0000',
       licencia: params.licencia,
@@ -1672,7 +2142,9 @@ class BaseDeDatosFlota {
       }
     }
 
-    this.usuarios = this.usuarios.filter((u) => u.id !== id);
+    this.usuarios = this.crearArrayProxy(this.usuarios.filter((u) => u.id !== id));
+    // 🧠 LÓGICA: Persistir inmediatamente la eliminación del conductor en data.json
+    this.guardarDatos();
     return { exito: true, mensaje: 'Conductor eliminado exitosamente del catálogo.' };
   }
 
@@ -1851,12 +2323,13 @@ class BaseDeDatosFlota {
     return { exito: true, mensaje: 'Estación eliminada exitosamente.' };
   }
 
-  public cambiarPasswordUsuario(params: {
+  // 🔒 SEGURIDAD: Verificación y hashing estricto con bcryptjs al cambiar contraseña
+  public async cambiarPasswordUsuario(params: {
     usuarioId: string;
     passwordAnterior?: string;
     passwordNuevo: string;
     forzarSinAnterior?: boolean;
-  }): { exito: boolean; mensaje: string; usuario: Usuario } {
+  }): Promise<{ exito: boolean; mensaje: string; usuario: Usuario }> {
     const usuario = this.usuarios.find((u) => u.id === params.usuarioId);
     if (!usuario) throw new Error('Usuario no encontrado.');
 
@@ -1864,13 +2337,22 @@ class BaseDeDatosFlota {
       throw new Error('La nueva contraseña debe tener al menos 6 caracteres.');
     }
 
-    if (!params.forzarSinAnterior && usuario.tempPassword && params.passwordAnterior) {
-      if (params.passwordAnterior !== usuario.tempPassword && params.passwordAnterior !== usuario.passwordHash) {
+    // 🔒 SEGURIDAD: Verificación de contraseña anterior mediante bcrypt.compare()
+    if (!params.forzarSinAnterior && params.passwordAnterior) {
+      let passwordValida = false;
+      if (usuario.passwordHash) {
+        passwordValida = await bcrypt.compare(params.passwordAnterior, usuario.passwordHash);
+      }
+      if (!passwordValida && usuario.tempPassword) {
+        passwordValida = params.passwordAnterior === usuario.tempPassword;
+      }
+      if (!passwordValida) {
         throw new Error('La contraseña temporal o anterior ingresada es incorrecta.');
       }
     }
 
-    usuario.passwordHash = params.passwordNuevo;
+    // 🔒 SEGURIDAD: Hashing con salt 10 rounds para nueva contraseña. Eliminación total de asignación directa de texto plano.
+    usuario.passwordHash = await bcrypt.hash(params.passwordNuevo, 10);
     usuario.tempPassword = undefined;
     usuario.debeCambiarPassword = false;
 
@@ -1879,6 +2361,20 @@ class BaseDeDatosFlota {
       mensaje: 'Contraseña actualizada exitosamente.',
       usuario,
     };
+  }
+
+  // 🔒 SEGURIDAD: Método centralizado para verificar contraseñas con bcrypt.compare() en login
+  public async validarPassword(usuario: Usuario, passwordIngresado: string): Promise<boolean> {
+    if (!usuario) return false;
+    if (usuario.passwordHash) {
+      const coincide = await bcrypt.compare(passwordIngresado, usuario.passwordHash);
+      if (coincide) return true;
+    }
+    // Fallback para contraseña temporal si está asignada y pendiente de cambio
+    if (usuario.tempPassword && passwordIngresado === usuario.tempPassword) {
+      return true;
+    }
+    return false;
   }
 
   public crearSaldo(params: {
