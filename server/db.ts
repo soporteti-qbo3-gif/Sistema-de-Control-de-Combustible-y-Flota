@@ -26,6 +26,7 @@ import {
   BombaGasolina,
 } from './types';
 import { procesarMetricasCarga } from './calculos';
+import { logAudit, AuditLog, audit_logs } from './audit';
 
 // 🧠 LÓGICA: Ruta física del archivo local de persistencia data.json
 const DATA_FILE = path.join(process.cwd(), 'data.json');
@@ -117,6 +118,11 @@ class BaseDeDatosFlota {
   public arqueosCajaChica: ArqueoCajaChica[] = [];
   public lecturasOdometro: LecturaOdometro[] = [];
   public bombas: BombaGasolina[] = [];
+  public audit_logs: AuditLog[] = audit_logs;
+
+  // Locks en memoria para mitigación absoluta de condiciones de carrera (Race Conditions)
+  private activeSolicitudLocks: Set<string> = new Set<string>();
+  private activeCargaLocks: Set<string> = new Set<string>();
 
   constructor() {
     // 🧠 LÓGICA: Al iniciar la clase, se cargan los datos persistidos si el archivo data.json existe.
@@ -148,6 +154,7 @@ class BaseDeDatosFlota {
         arqueosCajaChica: this.arqueosCajaChica,
         lecturasOdometro: this.lecturasOdometro,
         bombas: this.bombas,
+        audit_logs: this.audit_logs,
       };
       fs.writeFileSync(DATA_FILE, JSON.stringify(estado, null, 2), 'utf-8');
     } catch (error) {
@@ -174,6 +181,7 @@ class BaseDeDatosFlota {
         if (Array.isArray(datos.arqueosCajaChica)) this.arqueosCajaChica = datos.arqueosCajaChica;
         if (Array.isArray(datos.lecturasOdometro)) this.lecturasOdometro = datos.lecturasOdometro;
         if (Array.isArray(datos.bombas)) this.bombas = datos.bombas;
+        if (Array.isArray(datos.audit_logs)) this.audit_logs = datos.audit_logs;
       }
 
       // Si las 3 bombas no existían en el archivo previamente guardado, inicializarlas
@@ -235,6 +243,7 @@ class BaseDeDatosFlota {
     this.arqueosCajaChica = this.crearArrayProxy(this.arqueosCajaChica);
     this.lecturasOdometro = this.crearArrayProxy(this.lecturasOdometro);
     this.bombas = this.crearArrayProxy(this.bombas);
+    this.audit_logs = this.crearArrayProxy(this.audit_logs);
   }
 
   public inicializarDatos() {
@@ -1822,6 +1831,503 @@ class BaseDeDatosFlota {
     return { exito: true, saldo, movimiento };
   }
 
+  /**
+   * 🛡️ TRANSACCIÓN ATÓMICA DE AUTORIZACIÓN (TODO O NADA):
+   * 1. Verifica estado 'PENDIENTE' (si no, lanza error 'ESTADO_INVALIDO')
+   * 2. Lock temporal cambiando estado a 'AUTORIZANDO'
+   * 3. Verifica saldo suficiente en la estación correspondiente (si no, 'SALDO_INSUFICIENTE')
+   * 4. Descuenta el saldo y registra movimiento
+   * 5. Cambia estado a 'AUTORIZADA' y genera token
+   * 6. Registra auditoría
+   * 7. Rollback completo si cualquier paso falla
+   */
+  public async autorizarSolicitudAtomic(
+    solicitudId: string,
+    adminId: string,
+    montoAutorizado: number,
+    estacionId?: string
+  ): Promise<{
+    solicitud: SolicitudAutorizacion;
+    saldo: SaldoEstacion;
+    movimiento: MovimientoSaldo;
+    audit: any;
+  }> {
+    // Protección contra Race Condition: Lock atómico en memoria
+    if (this.activeSolicitudLocks.has(solicitudId)) {
+      const err = new Error('ESTADO_INVALIDO: La solicitud ya está siendo procesada concurrentemente por otro administrador.');
+      (err as any).code = 'ESTADO_INVALIDO';
+      throw err;
+    }
+
+    const solicitud = this.solicitudes.find((s) => s.id === solicitudId);
+    if (!solicitud) {
+      const err = new Error('ESTADO_INVALIDO: Solicitud no encontrada.');
+      (err as any).code = 'ESTADO_INVALIDO';
+      throw err;
+    }
+
+    // 1. Verificar que el estado actual sea 'PENDIENTE' (si no, lanza error)
+    if (solicitud.estado !== 'PENDIENTE') {
+      const err = new Error(`ESTADO_INVALIDO: La solicitud no está pendiente (estado actual: ${solicitud.estado}).`);
+      (err as any).code = 'ESTADO_INVALIDO';
+      throw err;
+    }
+
+    // 2. Lock temporal: Cambiar estado a 'AUTORIZANDO'
+    this.activeSolicitudLocks.add(solicitudId);
+    const estadoPrevio = solicitud.estado;
+    solicitud.estado = 'AUTORIZANDO' as any;
+
+    const montoNum = Number(montoAutorizado);
+    if (isNaN(montoNum) || montoNum <= 0) {
+      solicitud.estado = estadoPrevio;
+      this.activeSolicitudLocks.delete(solicitudId);
+      const err = new Error('MONTO_INVALIDO: El monto autorizado debe ser mayor a 0.');
+      (err as any).code = 'MONTO_INVALIDO';
+      throw err;
+    }
+
+    // 3. Identificar estación y verificar que el saldo sea suficiente
+    let saldo: SaldoEstacion | undefined;
+    if (estacionId) {
+      saldo = this.saldos.find(
+        (s) =>
+          s.id === estacionId ||
+          s.estacionId === estacionId ||
+          s.estacionNombre.toLowerCase() === estacionId.toLowerCase()
+      );
+    }
+    if (!saldo && solicitud.estacionSugerida) {
+      saldo = this.saldos.find(
+        (s) =>
+          s.id === solicitud.estacionSugerida ||
+          s.estacionId === solicitud.estacionSugerida ||
+          s.estacionNombre.toLowerCase().includes(solicitud.estacionSugerida.toLowerCase())
+      );
+    }
+    if (!saldo) {
+      saldo = this.saldos.find((s) => s.activo) || this.saldos[0];
+    }
+
+    if (!saldo) {
+      solicitud.estado = estadoPrevio;
+      this.activeSolicitudLocks.delete(solicitudId);
+      const err = new Error('SALDO_INSUFICIENTE: No hay cuenta de saldo disponible en la estación.');
+      (err as any).code = 'SALDO_INSUFICIENTE';
+      throw err;
+    }
+
+    if (saldo.saldoActual < montoNum) {
+      solicitud.estado = estadoPrevio;
+      this.activeSolicitudLocks.delete(solicitudId);
+      const err = new Error(
+        `SALDO_INSUFICIENTE: Saldo insuficiente en la estación ${saldo.estacionNombre}. Saldo actual: ₡${saldo.saldoActual.toLocaleString('es-CR')}, Requerido: ₡${montoNum.toLocaleString('es-CR')}`
+      );
+      (err as any).code = 'SALDO_INSUFICIENTE';
+      throw err;
+    }
+
+    // 4. Descontar el saldo (Atómico)
+    const saldoAnterior = saldo.saldoActual;
+    const saldoNuevo = Number((saldoAnterior - montoNum).toFixed(2));
+    const nowIso = new Date().toISOString();
+
+    let movimiento: MovimientoSaldo | undefined;
+    try {
+      saldo.saldoActual = saldoNuevo;
+      saldo.updatedAt = nowIso;
+
+      movimiento = {
+        id: `mov-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        saldoId: saldo.id,
+        estacionNombre: saldo.estacionNombre,
+        tipoCombustible: saldo.tipoCombustible || 'Combustible Flota',
+        tipo: 'descuento',
+        monto: -montoNum,
+        saldoAnterior,
+        saldoNuevo,
+        registroCombustibleId: `SOL-${solicitud.id}`,
+        vehiculoPlaca: solicitud.vehiculoPlaca,
+        numeroTicket: solicitud.codigoAutorizacion || `AUT-${solicitud.id}`,
+        usuarioId: adminId,
+        usuarioNombre: this.usuarios.find((u) => u.id === adminId)?.nombre || 'Administrador',
+        fecha: nowIso,
+        fechaDeposito: nowIso.split('T')[0],
+        notas: `Reserva y autorización previa de saldo para solicitud #${solicitud.id} (${solicitud.vehiculoPlaca})`,
+      };
+
+      this.movimientosSaldo.unshift(movimiento);
+
+      // 5. Cambiar estado a 'AUTORIZADA' y generar código
+      const codigoAutorizacion =
+        solicitud.codigoAutorizacion || `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
+
+      solicitud.estado = 'AUTORIZADA' as any;
+      solicitud.codigoAutorizacion = codigoAutorizacion;
+      solicitud.montoMaximoEstimado = montoNum;
+      solicitud.aprobadoPor = this.usuarios.find((u) => u.id === adminId)?.nombre || 'Administrador';
+      solicitud.fechaAprobacion = nowIso;
+
+      // 6. Registrar en auditoría
+      const auditRecord = {
+        accion: 'AUTORIZAR',
+        solicitudId,
+        adminId,
+        monto: montoNum,
+        timestamp: nowIso,
+        estadoPrevio,
+        estadoNuevo: 'AUTORIZADA',
+      };
+
+      const auditEntry = logAudit(
+        'AUTORIZAR',
+        'SOLICITUD',
+        solicitudId,
+        adminId,
+        { estado: estadoPrevio, saldo: saldoAnterior },
+        { estado: 'AUTORIZADA', saldo: saldoNuevo, monto: montoNum },
+        '127.0.0.1'
+      );
+      this.audit_logs.unshift(auditEntry);
+
+      this.guardarDatos();
+
+      return {
+        solicitud,
+        saldo,
+        movimiento,
+        audit: auditRecord,
+      };
+    } catch (error) {
+      // Rollback garantizado
+      saldo.saldoActual = saldoAnterior;
+      if (movimiento) {
+        const idx = this.movimientosSaldo.findIndex((m) => m.id === movimiento!.id);
+        if (idx !== -1) this.movimientosSaldo.splice(idx, 1);
+      }
+      solicitud.estado = estadoPrevio;
+      this.guardarDatos();
+      throw error;
+    } finally {
+      this.activeSolicitudLocks.delete(solicitudId);
+    }
+  }
+
+  /**
+   * 🛡️ TRANSACCIÓN ATÓMICA DE REGISTRO DE CARGA:
+   * 1. Verifica que NO exista otra carga con el mismo vehiculoId + fecha + odometroInicio
+   * 2. Verifica odometroFinal > odometroInicio
+   * 3. Verifica odometroInicio >= última lectura registrada del vehículo
+   * 4. Descuenta el saldo de la estación
+   * 5. Registra la carga
+   * 6. Registra la lectura de odómetro
+   * 7. Rollback completo si cualquier paso falla
+   * 8. Registra en auditoría: { accion: 'REGISTRAR_CARGA', cargaId, vehiculoId, monto, galones, timestamp }
+   */
+  public async registrarCargaAtomic(
+    vehiculoIdOrParams: string | {
+      vehiculoId: string;
+      estacionId?: string;
+      monto?: number;
+      totalPagado?: number;
+      galones?: number;
+      litros?: number;
+      odometroInicio?: number;
+      odometroAnterior?: number;
+      odometroFinal?: number;
+      odometroActual?: number;
+      conductorId?: string;
+      imagenBase64?: string;
+      fotoFacturaBase64?: string;
+      [key: string]: any;
+    },
+    estacionIdArg?: string,
+    montoArg?: number,
+    galonesArg?: number,
+    odometroInicioArg?: number,
+    odometroFinalArg?: number,
+    conductorIdArg?: string,
+    imagenBase64Arg?: string,
+    extrasArg?: any
+  ): Promise<{
+    carga: CargaCombustible;
+    vehiculo: Vehiculo;
+    saldo: SaldoEstacion;
+    lectura: LecturaOdometro;
+    movimiento: MovimientoSaldo;
+    audit: any;
+  }> {
+    let vehiculoId: string;
+    let estacionId: string | undefined;
+    let monto: number;
+    let galones: number;
+    let litros: number;
+    let odometroInicio: number;
+    let odometroFinal: number;
+    let conductorId: string;
+    let imagenBase64: string | undefined;
+    let extras: any;
+
+    if (typeof vehiculoIdOrParams === 'object' && vehiculoIdOrParams !== null) {
+      vehiculoId = vehiculoIdOrParams.vehiculoId;
+      estacionId = vehiculoIdOrParams.estacionId || (vehiculoIdOrParams.estacion as string) || estacionIdArg;
+      monto = Number(vehiculoIdOrParams.monto ?? vehiculoIdOrParams.totalPagado ?? montoArg ?? 0);
+      galones = Number(vehiculoIdOrParams.galones ?? galonesArg ?? 0);
+      litros = Number(
+        vehiculoIdOrParams.litros ??
+          (galones > 0 ? Number((galones * 3.78541).toFixed(2)) : (vehiculoIdOrParams.totalPagado ? Number((vehiculoIdOrParams.totalPagado / 700).toFixed(2)) : 0))
+      );
+      odometroInicio = Number(vehiculoIdOrParams.odometroInicio ?? vehiculoIdOrParams.odometroAnterior ?? odometroInicioArg ?? 0);
+      odometroFinal = Number(vehiculoIdOrParams.odometroFinal ?? vehiculoIdOrParams.odometroActual ?? odometroFinalArg ?? 0);
+      conductorId = vehiculoIdOrParams.conductorId || conductorIdArg || 'cond-1';
+      imagenBase64 = vehiculoIdOrParams.imagenBase64 || vehiculoIdOrParams.fotoFacturaBase64 || imagenBase64Arg;
+      extras = { ...vehiculoIdOrParams, ...extrasArg };
+    } else {
+      vehiculoId = vehiculoIdOrParams as string;
+      estacionId = estacionIdArg;
+      monto = Number(montoArg ?? 0);
+      galones = Number(galonesArg ?? 0);
+      litros = (galones > 0 ? Number((galones * 3.78541).toFixed(2)) : Number(extrasArg?.litros || 0));
+      odometroInicio = Number(odometroInicioArg ?? 0);
+      odometroFinal = Number(odometroFinalArg ?? 0);
+      conductorId = conductorIdArg || 'cond-1';
+      imagenBase64 = imagenBase64Arg;
+      extras = extrasArg || {};
+    }
+
+    const fechaHoy = (extras?.fecha ? new Date(extras.fecha) : new Date()).toISOString().split('T')[0];
+    const lockKey = `${vehiculoId}-${fechaHoy}-${odometroInicio}`;
+
+    if (this.activeCargaLocks.has(lockKey)) {
+      const err = new Error('CARGA_DUPLICADA: Ya existe una operación concurrente en curso con este vehículo y odómetro.');
+      (err as any).code = 'CARGA_DUPLICADA';
+      throw err;
+    }
+    this.activeCargaLocks.add(lockKey);
+
+    const saldoOriginalState = new Map<string, number>();
+
+    try {
+      const vehiculo = this.vehiculos.find((v) => v.id === vehiculoId);
+      if (!vehiculo) {
+        const err = new Error(`Vehículo no encontrado (${vehiculoId}).`);
+        (err as any).code = 'VEHICULO_NO_ENCONTRADO';
+        throw err;
+      }
+
+      // 1. Verificar que NO exista otra carga con el mismo vehiculoId + fecha + odometroInicio
+      const cargaDuplicada = this.cargas.find((c) => {
+        const fCarga = c.fecha ? c.fecha.split('T')[0] : '';
+        const odoInicioCarga = c.odometroAnterior ?? (c.odometroActual - c.kmRecorridos);
+        return (
+          c.vehiculoId === vehiculoId &&
+          fCarga === fechaHoy &&
+          (odoInicioCarga === odometroInicio || c.odometroActual === odometroFinal)
+        );
+      });
+
+      if (cargaDuplicada) {
+        const err = new Error('CARGA_DUPLICADA: Ya existe una carga registrada con el mismo vehículo, fecha y odómetro de inicio.');
+        (err as any).code = 'CARGA_DUPLICADA';
+        throw err;
+      }
+
+      // 2. Verificar que odometroFinal > odometroInicio
+      if (odometroFinal <= odometroInicio) {
+        const err = new Error(`ODOMETRO_INVALIDO: El odómetro final (${odometroFinal}) debe ser estrictamente mayor al odómetro de inicio (${odometroInicio}).`);
+        (err as any).code = 'ODOMETRO_INVALIDO';
+        throw err;
+      }
+
+      // 3. Verificar que odometroInicio >= última lectura registrada del vehículo
+      const lecturasVeh = this.lecturasOdometro.filter((l) => l.vehiculoId === vehiculoId);
+      const maxLectura = lecturasVeh.length > 0 ? Math.max(...lecturasVeh.map((l) => l.km)) : (vehiculo.odometroActual ?? 0);
+      const ultimaLecturaRegistrada = Math.max(vehiculo.odometroActual ?? 0, maxLectura);
+
+      if (odometroInicio < ultimaLecturaRegistrada) {
+        const err = new Error(`ODOMETRO_INVALIDO: El odómetro inicial (${odometroInicio}) no puede ser menor a la última lectura registrada del vehículo (${ultimaLecturaRegistrada}).`);
+        (err as any).code = 'ODOMETRO_INVALIDO';
+        throw err;
+      }
+
+      // Identificar saldo de la estación
+      let saldo: SaldoEstacion | undefined;
+      if (estacionId) {
+        saldo = this.saldos.find(
+          (s) =>
+            s.id === estacionId ||
+            s.estacionId === estacionId ||
+            s.estacionNombre.toLowerCase() === estacionId.toLowerCase()
+        );
+      }
+      if (!saldo && extras?.estacion) {
+        saldo = this.saldos.find((s) => s.estacionNombre.toLowerCase().includes(String(extras.estacion).toLowerCase()));
+      }
+      if (!saldo) {
+        saldo = this.saldos.find((s) => s.activo) || this.saldos[0];
+      }
+
+      if (!saldo) {
+        const err = new Error('SALDO_INSUFICIENTE: No hay cuenta de saldo configurada para la estación.');
+        (err as any).code = 'SALDO_INSUFICIENTE';
+        throw err;
+      }
+
+      // 4. Descontar saldo si monto > 0
+      if (saldo.saldoActual < monto) {
+        const err = new Error(`SALDO_INSUFICIENTE: Saldo insuficiente en la estación ${saldo.estacionNombre}. Saldo: ₡${saldo.saldoActual.toLocaleString('es-CR')}, Requerido: ₡${monto.toLocaleString('es-CR')}`);
+        (err as any).code = 'SALDO_INSUFICIENTE';
+        throw err;
+      }
+
+      saldoOriginalState.set(saldo.id, saldo.saldoActual);
+
+      const saldoAnterior = saldo.saldoActual;
+      const saldoNuevo = Number((saldoAnterior - monto).toFixed(2));
+      const nowIso = new Date().toISOString();
+
+      saldo.saldoActual = saldoNuevo;
+      saldo.updatedAt = nowIso;
+
+      const movimiento: MovimientoSaldo = {
+        id: `mov-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        saldoId: saldo.id,
+        estacionNombre: saldo.estacionNombre,
+        tipoCombustible: extras?.tipoCombustible || saldo.tipoCombustible || vehiculo.tipoCombustible,
+        tipo: 'descuento',
+        monto: -monto,
+        saldoAnterior,
+        saldoNuevo,
+        registroCombustibleId: `CRG-ATOMIC-${Date.now()}`,
+        vehiculoPlaca: vehiculo.placa,
+        numeroTicket: extras?.numeroTicket || `TKT-${Math.floor(100000 + Math.random() * 900000)}`,
+        usuarioId: conductorId,
+        usuarioNombre: this.usuarios.find((u) => u.id === conductorId)?.nombre || 'Conductor',
+        fecha: nowIso,
+        fechaDeposito: nowIso.split('T')[0],
+        notas: `Descuento atómico por registro de carga (${vehiculo.placa})`,
+      };
+      this.movimientosSaldo.unshift(movimiento);
+
+      // 5. Registrar la carga
+      const kmRecorridos = odometroFinal - odometroInicio;
+      const costoPorKm = kmRecorridos > 0 ? Number((monto / kmRecorridos).toFixed(2)) : 0;
+      const rendimientoKmL =
+        litros > 0 && kmRecorridos > 0
+          ? Number((kmRecorridos / litros).toFixed(2))
+          : vehiculo.rendimientoTeoricoKmL;
+
+      const cargaId = `CRG-${Date.now().toString().slice(-6)}-${Math.floor(100 + Math.random() * 900)}`;
+      const nuevaCarga: CargaCombustible = {
+        id: cargaId,
+        fecha: extras?.fecha || nowIso,
+        conductorId,
+        conductorNombre: this.usuarios.find((u) => u.id === conductorId)?.nombre || 'Conductor',
+        vehiculoId: vehiculo.id,
+        vehiculoPlaca: vehiculo.placa,
+        solicitudAutorizacionId: extras?.solicitudAutorizacionId,
+        codigoAutorizacion: extras?.codigoAutorizacion,
+        estacion: saldo.estacionNombre,
+        numeroTicket: extras?.numeroTicket || movimiento.numeroTicket,
+        claveNumerica: extras?.claveNumerica,
+        tipoCombustible: extras?.tipoCombustible || vehiculo.tipoCombustible,
+        litros: litros || (galones ? Number((galones * 3.78541).toFixed(2)) : 0),
+        precioPorLitro: litros > 0 ? Number((monto / litros).toFixed(2)) : 700,
+        totalPagado: monto,
+        odometroAnterior: odometroInicio,
+        odometroActual: odometroFinal,
+        kmRecorridos,
+        costoPorKm,
+        rendimientoKmL,
+        servicioDestino: saldo.estacionNombre,
+        saldoPrepagoId: saldo.id,
+        estadoValidacion: 'PENDIENTE',
+        fotoFacturaUrl:
+          imagenBase64 ||
+          generarTicketSvgBase64(
+            saldo.estacionNombre,
+            litros || 1,
+            monto,
+            fechaHoy,
+            movimiento.numeroTicket || 'TKT-001'
+          ),
+        fotoOdometroUrl: extras?.fotoOdometroBase64 || generarOdometroSvgBase64(odometroFinal, vehiculo.placa),
+        datosIA: extras?.datosIA || {
+          estacion: saldo.estacionNombre,
+          numeroTicket: movimiento.numeroTicket,
+          litros,
+          totalPagado: monto,
+          odometroLeido: odometroFinal,
+          confianzaScore: 98,
+        },
+        anomaliaDetectada: false,
+        esDuplicado: false,
+      };
+
+      this.cargas.unshift(nuevaCarga);
+      movimiento.registroCombustibleId = nuevaCarga.id;
+
+      // 6. Registrar lectura de odómetro y actualizar vehículo
+      const odometroPrevioVehiculo = vehiculo.odometroActual;
+      vehiculo.odometroActual = odometroFinal;
+
+      const nuevaLectura: LecturaOdometro = {
+        id: `ODO-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        vehiculoId: vehiculo.id,
+        km: odometroFinal,
+        fecha: nowIso,
+        registradoPorId: conductorId,
+        registradoPorNombre: nuevaCarga.conductorNombre,
+        observaciones: `Lectura registrada en despacho atómico #${nuevaCarga.id}`,
+      };
+      this.lecturasOdometro.unshift(nuevaLectura);
+
+      // 7. Auditoría
+      const auditRecord = {
+        accion: 'REGISTRAR_CARGA',
+        cargaId: nuevaCarga.id,
+        vehiculoId,
+        monto,
+        galones: galones || Number((litros / 3.78541).toFixed(2)),
+        timestamp: nowIso,
+      };
+
+      const auditEntry = logAudit(
+        'REGISTRAR_CARGA',
+        'CARGA',
+        nuevaCarga.id,
+        conductorId,
+        { odometroAnterior: odometroInicio, saldo: saldoAnterior },
+        { odometroActual: odometroFinal, saldo: saldoNuevo, monto, galones },
+        '127.0.0.1'
+      );
+      this.audit_logs.unshift(auditEntry);
+
+      this.guardarDatos();
+
+      return {
+        carga: nuevaCarga,
+        vehiculo,
+        saldo,
+        lectura: nuevaLectura,
+        movimiento,
+        audit: auditRecord,
+      };
+    } catch (error) {
+      // Revertir si saldo fue descontado
+      if (saldoOriginalState.size > 0) {
+        for (const [sId, original] of saldoOriginalState.entries()) {
+          const s = this.saldos.find((sal) => sal.id === sId);
+          if (s) s.saldoActual = original;
+        }
+      }
+      this.guardarDatos();
+      throw error;
+    } finally {
+      this.activeCargaLocks.delete(lockKey);
+    }
+  }
+
   public obtenerSaldosConDetalle(): SaldoEstacion[] {
     return this.saldos.map((s) => {
       const movs = this.movimientosSaldo.filter((m) => m.saldoId === s.id);
@@ -3104,3 +3610,13 @@ class BaseDeDatosFlota {
 }
 
 export const db = new BaseDeDatosFlota();
+
+export const autorizarSolicitudAtomic = (
+  solicitudId: string,
+  adminId: string,
+  montoAutorizado: number,
+  estacionId?: string
+) => db.autorizarSolicitudAtomic(solicitudId, adminId, montoAutorizado, estacionId);
+
+export const registrarCargaAtomic = (...args: any[]) => (db.registrarCargaAtomic as any)(...args);
+

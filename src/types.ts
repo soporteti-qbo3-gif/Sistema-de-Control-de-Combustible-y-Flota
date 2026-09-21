@@ -59,7 +59,7 @@ export interface SolicitudAutorizacion {
   litrosSolicitados: number;
   estacionSugerida?: string;
   motivo: string;
-  estado: 'PENDIENTE' | 'APROBADA' | 'RECHAZADA' | 'COMPLETADA';
+  estado: 'PENDIENTE' | 'APROBADA' | 'AUTORIZADA' | 'AUTORIZANDO' | 'RECHAZADA' | 'COMPLETADA';
   codigoAutorizacion?: string;
   montoMaximoEstimado?: number;
   aprobadoPor?: string;

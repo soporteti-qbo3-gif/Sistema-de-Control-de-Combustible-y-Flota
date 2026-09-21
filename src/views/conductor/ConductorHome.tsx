@@ -1,32 +1,29 @@
 /**
- * Pantalla Principal de Conductor (Mobile-First PWA)
- * Optimizado para pantallas de 360px sin scroll vertical excesivo.
- * Resumen ultra-compacto de unidad, odómetro, costo/rendimiento y 2 botones de acción rápida.
+ * Pantalla Principal de Conductor (Mobile-First Cockpit)
+ * Diseño industrial, sin tarjetas anidadas ni elementos genéricos.
+ * Alta legibilidad bajo luz de sol y optimizado para pantallas táctiles de campo.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   Truck,
-  Fuel,
   Send,
   Camera,
   CheckCircle2,
   Clock,
   ChevronRight,
-  Sparkles,
   Gauge,
-  DollarSign,
   TrendingUp,
-  FilePlus,
   KeyRound,
-  Droplets,
+  History,
+  ShieldCheck,
+  Fuel,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
 import { Vehiculo, SolicitudAutorizacion, CargaCombustible } from '../../types';
 import { SolicitarCargaModal } from './SolicitarCargaModal';
 import { UserAvatar } from '../../components/UserAvatar';
-import { LiquidButton } from '../../components/ui/LiquidButton';
 
 interface ConductorHomeProps {
   setVistaActiva: (v: string) => void;
@@ -68,206 +65,171 @@ export const ConductorHome: React.FC<ConductorHomeProps> = ({ setVistaActiva }) 
     cargarDatos();
   }, [usuario]);
 
-  // Solicitud aprobada activa o pendiente
   const solicitudAprobada = solicitudes.find((s) => s.estado === 'APROBADA');
   const solicitudPendiente = solicitudes.find((s) => s.estado === 'PENDIENTE');
 
   return (
-    <div className="w-full max-w-lg mx-auto flex flex-col justify-between space-y-4 pb-20 lg:pb-6 min-h-[calc(100vh-6rem)]">
-      <div className="space-y-3">
-        {/* Header Compacto del Conductor */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <UserAvatar nombre={usuario?.nombre} rol={usuario?.rol} size="sm" />
-            <div>
-              <div className="flex items-center space-x-1.5">
-                <h1 className="text-sm font-semibold text-slate-900 leading-tight">
-                  {usuario?.nombre || 'Conductor Flota'}
-                </h1>
-                <span className="w-2 h-2 rounded-full bg-emerald-500" title="Activo" />
-              </div>
-              <p className="text-[11px] text-slate-500">
-                Licencia: <span className="font-mono text-slate-800">{usuario?.licencia || 'LIC-B3-2025'}</span>
-              </p>
+    <div className="w-full max-w-md mx-auto space-y-4 pb-24 pt-1">
+      {/* 1. Barra de Identidad del Conductor (Limpia, con Large Title y Perfil) */}
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center space-x-3">
+          <UserAvatar nombre={usuario?.nombre} rol={usuario?.rol} size="md" />
+          <div>
+            <div className="flex items-center space-x-2">
+              <span className="text-sm font-bold text-[#1C1C1E] leading-tight">
+                {usuario?.nombre || 'Conductor de Flota'}
+              </span>
+              <span className="w-2 h-2 rounded-full bg-[#34C759] ring-4 ring-[#34C759]/20" title="En servicio activo" />
             </div>
+            <span className="text-xs font-mono text-slate-500">
+              {usuario?.licencia || 'LIC-B3-2025'} • Activo
+            </span>
           </div>
-          <button
-            onClick={() => setVistaActiva('conductor-cargas')}
-            className="p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition-colors"
-            title="Ver Historial"
-          >
-            <Clock className="w-4 h-4" />
-          </button>
         </div>
 
-        {/* Alerta de Solicitud Aprobada con Código QR / Token */}
-        {solicitudAprobada && (
-          <div className="bg-emerald-50/70 border border-emerald-200 rounded-lg p-3 flex items-center justify-between">
-            <div className="flex items-center space-x-2.5">
-              <div className="w-7 h-7 rounded-md bg-emerald-700 text-white flex items-center justify-center font-bold">
+        <button
+          onClick={() => setVistaActiva('conductor-cargas')}
+          className="apple-press-feedback flex items-center space-x-1 text-xs font-bold text-[#007AFF] px-3 py-1.5 rounded-full bg-[#007AFF]/10 hover:bg-[#007AFF]/15 transition-all"
+        >
+          <History className="w-3.5 h-3.5 text-[#007AFF]" />
+          <span>Historial</span>
+        </button>
+      </div>
+
+      {/* 2. Banner de Token Aprobado (Estilo tarjeta iOS Wallet) */}
+      {solicitudAprobada && (
+        <div className="bg-[#1C1C1E] text-white rounded-2xl p-4 shadow-md border border-white/10 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-[#34C759]/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="flex items-start justify-between relative z-10">
+            <div className="space-y-1">
+              <div className="flex items-center space-x-1.5 text-[#34C759] text-[11px] font-bold uppercase tracking-wider">
                 <CheckCircle2 className="w-4 h-4" />
+                <span>Autorización Lista para Carga</span>
               </div>
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-emerald-800 tracking-wider">
-                  Carga Aprobada Lista
-                </span>
-                <p className="text-xs font-mono font-semibold text-emerald-950">
-                  TOKEN: {solicitudAprobada.codigoAutorizacion}
-                </p>
+              <div className="text-2xl font-mono font-bold tracking-wider text-white mt-1">
+                {solicitudAprobada.codigoAutorizacion}
               </div>
+              <p className="text-xs text-slate-400">
+                Hasta {solicitudAprobada.litrosSolicitados} Litros • Estación recomendada
+              </p>
             </div>
+
             <button
               onClick={() => setVistaActiva('conductor-registrar')}
-              className="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-md text-xs font-medium transition-colors flex items-center space-x-1"
+              className="apple-press-feedback px-3.5 py-2.5 bg-[#34C759] hover:bg-[#30B752] text-black text-xs font-bold rounded-xl transition-all flex items-center space-x-1 shadow-xs"
             >
               <span>Subir Docs</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Alerta de Solicitud Pendiente */}
-        {solicitudPendiente && !solicitudAprobada && (
-          <div className="bg-amber-50/60 border border-amber-200 rounded-lg p-2.5 flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Clock className="w-4 h-4 text-amber-700 animate-spin" />
-              <span className="text-xs font-medium text-amber-900">
-                Solicitud en revisión ({solicitudPendiente.litrosSolicitados}L)
-              </span>
-            </div>
-            <span className="text-[10px] font-medium text-amber-800 bg-amber-100 px-2 py-0.5 rounded">
-              Pendiente
+      {/* Alerta de Solicitud en Proceso */}
+      {solicitudPendiente && !solicitudAprobada && (
+        <div className="bg-[#FF9500]/10 border border-[#FF9500]/25 rounded-2xl p-3.5 flex items-center justify-between text-xs">
+          <div className="flex items-center space-x-2.5">
+            <Clock className="w-4 h-4 text-[#FF9500] animate-spin" />
+            <span className="font-semibold text-[#8F5200]">
+              Solicitud de {solicitudPendiente.litrosSolicitados}L en espera de token
             </span>
           </div>
-        )}
+          <span className="font-mono text-[10px] text-[#C97700] bg-[#FF9500]/20 px-2 py-0.5 rounded-full font-bold">
+            PENDIENTE
+          </span>
+        </div>
+      )}
 
-        {/* 1. Tarjeta: Vehículo Asignado */}
+      {/* 3. Ficha Inset Grouped de la Unidad Asignada */}
+      <div className="bg-white border border-black/[0.06] rounded-2xl overflow-hidden shadow-xs">
+        {/* Cabecera de la Unidad */}
         <div
           onClick={() => setVistaActiva('conductor-vehiculo')}
-          className="bg-white border border-slate-200 rounded-lg p-3.5 hover:border-slate-300 transition-colors cursor-pointer overflow-hidden relative group"
+          className="p-4 flex items-center justify-between hover:bg-black/[0.015] transition-colors cursor-pointer border-b border-black/[0.06]"
         >
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="flex items-center space-x-3 min-w-0">
-              {vehiculo?.imagenUrl ? (
-                <div className="w-10 h-10 rounded-md overflow-hidden border border-slate-200 flex-shrink-0 bg-slate-100">
-                  <img
-                    src={vehiculo.imagenUrl}
-                    alt={`${vehiculo.marca} ${vehiculo.modelo}`}
-                    className="w-full h-full object-cover"
-                    referrerPolicy="no-referrer"
-                  />
-                </div>
-              ) : (
-                <div className="w-10 h-10 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-700 flex-shrink-0">
-                  <Truck className="w-4 h-4" />
-                </div>
-              )}
-              <div className="min-w-0">
-                <span className="text-[10px] font-medium uppercase tracking-wider text-slate-500 block">
-                  Vehículo Asignado
-                </span>
-                <h2 className="text-sm font-semibold text-slate-900 leading-tight truncate">
-                  {vehiculo?.marca} {vehiculo?.modelo}
-                </h2>
-                <span className="text-[10px] text-slate-500">Año {vehiculo?.anio || 2022}</span>
-              </div>
+          <div className="flex items-center space-x-3 min-w-0">
+            <div className="w-11 h-11 rounded-xl bg-black/[0.05] border border-black/[0.06] flex items-center justify-center text-[#1C1C1E] flex-shrink-0">
+              <Truck className="w-5 h-5" />
             </div>
-            <span className="text-xs font-mono font-medium bg-slate-900 text-white px-2 py-0.5 rounded-md flex-shrink-0">
-              {vehiculo?.placa || 'PENDIENTE'}
-            </span>
+            <div className="min-w-0">
+              <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">
+                Unidad Asignada
+              </span>
+              <h2 className="text-sm font-bold text-[#1C1C1E] truncate">
+                {vehiculo?.marca} {vehiculo?.modelo}
+              </h2>
+              <span className="text-xs text-slate-500">
+                Serie #{vehiculo?.numeroSerie || '1'} • Mod. {vehiculo?.anio || 2022}
+              </span>
+            </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-slate-100 text-center">
-            <div className="p-1.5 bg-slate-50 rounded-md">
-              <span className="text-[10px] text-slate-500 block">No. Serie</span>
-              <span className="text-xs font-medium font-mono text-slate-800">
-                #{vehiculo?.numeroSerie || '1'}
-              </span>
+          <span className="text-xs font-mono font-bold bg-[#1C1C1E] text-white px-3 py-1.5 rounded-lg flex-shrink-0 tracking-wide shadow-2xs">
+            {vehiculo?.placa || 'PENDIENTE'}
+          </span>
+        </div>
+
+        {/* Ribbon de Métricas Operativas de la Unidad */}
+        <div className="grid grid-cols-3 divide-x divide-black/[0.06] py-3.5 bg-black/[0.015] text-center">
+          <div className="px-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Odómetro</span>
+            <div className="text-sm font-mono font-bold text-[#1C1C1E] mt-0.5">
+              {vehiculo?.odometroActual ? Number(vehiculo.odometroActual).toLocaleString() : '0'}
+              <span className="text-[10px] text-slate-400 ml-0.5">km</span>
             </div>
-            <div className="p-1.5 bg-slate-50 rounded-md">
-              <span className="text-[10px] text-slate-500 block">Combustible</span>
-              <span className="text-xs font-medium text-slate-800 truncate block">
-                {vehiculo?.tipoCombustible || 'Diesel'}
-              </span>
+          </div>
+
+          <div className="px-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Tipo</span>
+            <div className="text-sm font-bold text-[#1C1C1E] mt-0.5 truncate">
+              {vehiculo?.tipoCombustible || 'Diesel'}
             </div>
-            <div className="p-1.5 bg-slate-50 rounded-md">
-              <span className="text-[10px] text-slate-500 block">Tanque</span>
-              <span className="text-xs font-medium text-slate-800">
-                {vehiculo?.capacidadTanqueLitros || 100} L
-              </span>
+          </div>
+
+          <div className="px-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Tanque</span>
+            <div className="text-sm font-mono font-bold text-[#1C1C1E] mt-0.5">
+              {vehiculo?.capacidadTanqueLitros || 100}
+              <span className="text-[10px] text-slate-400 ml-0.5">L</span>
             </div>
           </div>
         </div>
 
-        {/* 2. Grid Compacto: Odómetro y Último Costo / Rendimiento */}
-        <div className="grid grid-cols-2 gap-2.5">
-          {/* Odómetro Actual */}
-          <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between">
-            <div className="flex items-center space-x-1.5 text-slate-500 mb-1">
-              <Gauge className="w-3.5 h-3.5 text-slate-600" />
-              <span className="text-[11px] font-medium">Odómetro Actual</span>
-            </div>
-            <div>
-              <span className="text-base font-mono font-semibold text-slate-900">
-                {vehiculo?.odometroActual
-                  ? Number(vehiculo.odometroActual).toLocaleString()
-                  : '0'}
-              </span>
-              <span className="text-[10px] text-slate-500 ml-1 font-medium">
-                {vehiculo?.tipoControlMedicion === 'HORAS' ? 'hrs' : 'km'}
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-500 font-normal mt-1">
-              Lectura verificada
+        {/* Último Registro */}
+        <div className="px-4 py-2.5 bg-white border-t border-black/[0.06] flex items-center justify-between text-xs text-slate-500">
+          <div className="flex items-center space-x-2 truncate">
+            <span className="w-2 h-2 rounded-full bg-[#34C759] flex-shrink-0" />
+            <span className="truncate">
+              Último despacho: ₡{Number(ultimaCarga?.totalPagado || 0).toLocaleString()} (
+              {ultimaCarga?.rendimientoKmL ? `${ultimaCarga.rendimientoKmL.toFixed(1)} km/L` : 'Normal'}
+              )
             </span>
           </div>
-
-          {/* Último Costo y Rendimiento */}
-          <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between">
-            <div className="flex items-center space-x-1.5 text-slate-500 mb-1">
-              <TrendingUp className="w-3.5 h-3.5 text-slate-600" />
-              <span className="text-[11px] font-medium">Último Consumo</span>
-            </div>
-            <div>
-              <span className="text-base font-mono font-semibold text-slate-900">
-                ₡{ultimaCarga?.totalPagado ? Number(ultimaCarga.totalPagado).toLocaleString() : '0'}
-              </span>
-              <span className="text-[10px] text-slate-500 block">
-                {ultimaCarga?.rendimientoKmL ? `${ultimaCarga.rendimientoKmL.toFixed(1)} km/L` : 'Rendimiento estándar'}
-              </span>
-            </div>
-            <span className="text-[10px] text-slate-400 truncate">
-              {ultimaCarga?.estacion || 'Bomba Nosara'}
-            </span>
-          </div>
+          <span className="text-[11px] font-medium text-slate-400 flex-shrink-0 ml-1">
+            {ultimaCarga?.estacion || 'Bomba Nosara'}
+          </span>
         </div>
       </div>
 
-      {/* Botones de Acción Primarios e Inmediatos (Touch-Friendly min-height 44px) */}
-      <div className="space-y-2.5 pt-2">
-        {/* Acción Principal 1: Solicitar Autorización */}
-        <LiquidButton
+      {/* 4. Acciones Tácticas Principales (Botones táctiles Apple HIG min-h 48px) */}
+      <div className="space-y-2.5 pt-1">
+        <button
           id="btn-conductor-solicitar"
-          variant="primary"
-          size="lg"
           onClick={() => setModalSolicitarOpen(true)}
-          className="w-full text-xs sm:text-sm font-bold shadow-md"
-          icon={<Send className="w-4 h-4 text-emerald-400" />}
+          className="apple-press-feedback w-full h-12 bg-[#007AFF] hover:bg-[#0066D6] text-white rounded-2xl font-bold text-sm transition-all flex items-center justify-center space-x-2 shadow-xs"
         >
-          Solicitar Autorización de Carga
-        </LiquidButton>
+          <Send className="w-4 h-4 text-white" />
+          <span>Solicitar Autorización de Carga</span>
+        </button>
 
-        {/* Acción Secundaria 2: Subir Factura y Odómetro */}
-        <LiquidButton
+        <button
           id="btn-conductor-subir-docs"
-          variant="secondary"
-          size="lg"
           onClick={() => setVistaActiva('conductor-registrar')}
-          className="w-full text-xs sm:text-sm font-medium"
-          icon={<Camera className="w-4 h-4 text-slate-600" />}
+          className="apple-press-feedback w-full h-12 bg-white hover:bg-black/[0.02] text-[#1C1C1E] border border-black/[0.08] rounded-2xl font-bold text-sm transition-all flex items-center justify-center space-x-2 shadow-xs"
         >
-          Subir Factura y Odómetro
-        </LiquidButton>
+          <Camera className="w-4 h-4 text-slate-600" />
+          <span>Subir Factura y Odómetro (Cámara)</span>
+        </button>
       </div>
 
       {/* Modal de Solicitud de Carga Rápida */}

@@ -167,8 +167,8 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 flex flex-col font-sans antialiased selection:bg-stone-900 selection:text-white relative">
-      {/* Header Fijo Compacto */}
+    <div className="min-h-screen bg-[#F2F2F7] text-[#1C1C1E] flex flex-col font-sans antialiased selection:bg-[#007AFF] selection:text-white relative">
+      {/* Header Fijo Compacto estilo Apple Translucent Bar */}
       <Navbar
         vistaActiva={vistaActiva}
         setVistaActiva={setVistaActiva}
@@ -193,7 +193,7 @@ const MainLayout: React.FC = () => {
           onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
 
-        <main className="flex-1 p-2.5 sm:p-4 lg:p-5 min-w-0 overflow-y-auto pb-20 lg:pb-6">
+        <main className="flex-1 p-3 sm:p-5 lg:p-6 min-w-0 overflow-y-auto pb-24 lg:pb-8">
           {renderVista()}
         </main>
 
@@ -202,10 +202,10 @@ const MainLayout: React.FC = () => {
           <button
             id="btn-floating-open-sidebar"
             onClick={() => setSidebarCollapsed(false)}
-            className="hidden lg:flex fixed left-4 bottom-6 z-30 items-center space-x-2 bg-stone-950 text-white hover:bg-stone-800 text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl border border-stone-700 transition-all hover:scale-105 active:scale-95 group"
+            className="hidden lg:flex fixed left-5 bottom-6 z-30 items-center space-x-2 bg-[#1C1C1E] text-white hover:bg-black text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg border border-white/10 transition-all active:scale-95 group"
             title="Desplegar menú lateral a su normalidad"
           >
-            <PanelLeftOpen className="w-4 h-4 text-amber-400 group-hover:rotate-12 transition-transform" />
+            <PanelLeftOpen className="w-4 h-4 text-[#007AFF] transition-transform group-hover:scale-110" />
             <span>Desplegar Menú</span>
           </button>
         )}

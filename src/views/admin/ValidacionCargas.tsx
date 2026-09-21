@@ -35,6 +35,8 @@ import {
   Building2,
   HelpCircle,
   RefreshCw,
+  Table,
+  LayoutGrid,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CargaCombustible, SaldoEstacion, Vehiculo, Usuario } from '../../types';
@@ -47,6 +49,7 @@ export const ValidacionCargas: React.FC = () => {
   const [conductores, setConductores] = useState<Usuario[]>([]);
   const [filtroEstado, setFiltroEstado] = useState<string>('PENDIENTE');
   const [busqueda, setBusqueda] = useState<string>('');
+  const [modoVista, setModoVista] = useState<'tabla' | 'tarjetas'>('tabla');
   const [cargando, setCargando] = useState(true);
 
   // Modal de Auditoría y Edición de Factura
@@ -352,25 +355,55 @@ export const ValidacionCargas: React.FC = () => {
             </div>
           </div>
 
-          {/* Filtros rápidos por estado */}
-          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-md border border-slate-200 self-start sm:self-auto">
-            {[
-              { id: 'PENDIENTE', label: 'Pendientes' },
-              { id: 'VALIDADO', label: 'Validados' },
-              { id: 'TODOS', label: 'Todos' },
-            ].map((f) => (
+          {/* Filtros rápidos por estado y selector de vista */}
+          <div className="flex items-center space-x-2 self-start sm:self-auto flex-wrap gap-y-1">
+            <div className="flex items-center space-x-1 bg-slate-100 p-0.5 rounded-md border border-slate-200">
+              {[
+                { id: 'PENDIENTE', label: 'Pendientes' },
+                { id: 'VALIDADO', label: 'Validados' },
+                { id: 'TODOS', label: 'Todos' },
+              ].map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => setFiltroEstado(f.id)}
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
+                    filtroEstado === f.id
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Toggle Tabla vs Tarjetas */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-md border border-slate-200">
               <button
-                key={f.id}
-                onClick={() => setFiltroEstado(f.id)}
-                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
-                  filtroEstado === f.id
+                type="button"
+                onClick={() => setModoVista('tabla')}
+                className={`p-1 rounded text-xs transition-colors ${
+                  modoVista === 'tabla'
                     ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
+                title="Vista de Tabla / Ledger"
               >
-                {f.label}
+                <Table className="w-3.5 h-3.5" />
               </button>
-            ))}
+              <button
+                type="button"
+                onClick={() => setModoVista('tarjetas')}
+                className={`p-1 rounded text-xs transition-colors ${
+                  modoVista === 'tarjetas'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Vista de Tarjetas"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -411,7 +444,144 @@ export const ValidacionCargas: React.FC = () => {
             {busqueda ? 'Intenta buscar con otro número de ticket o placa' : 'Todos los registros están al día.'}
           </p>
         </div>
+      ) : modoVista === 'tabla' ? (
+        /* VISTA TABULAR DE AUDITORÍA (LEDGER LIMPIO Y CONTINUO) */
+        <div className="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-xs">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50/70 text-slate-600 text-[11px] uppercase tracking-wider font-semibold">
+                  <th className="py-2.5 px-3">Ticket / Fecha</th>
+                  <th className="py-2.5 px-3">Unidad / Placa</th>
+                  <th className="py-2.5 px-3">Conductor</th>
+                  <th className="py-2.5 px-3">Estación / Servicio</th>
+                  <th className="py-2.5 px-3">Volumen & Monto</th>
+                  <th className="py-2.5 px-3">Odómetro</th>
+                  <th className="py-2.5 px-3">Estado</th>
+                  <th className="py-2.5 px-3 text-right">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {cargasFiltradas.map((carga) => {
+                  const ticketId = carga.numeroTicket || carga.datosIA?.numeroTicket || 'S/N';
+                  return (
+                    <tr
+                      key={carga.id}
+                      className="hover:bg-slate-50/80 transition-colors group"
+                    >
+                      {/* Ticket / Fecha */}
+                      <td className="py-2.5 px-3">
+                        <div className="font-mono font-bold text-slate-900">
+                          #{ticketId}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          {carga.fecha.split('T')[0]} {carga.fecha.includes('T') ? carga.fecha.split('T')[1].slice(0, 5) : ''}
+                        </div>
+                      </td>
+
+                      {/* Unidad / Placa */}
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono font-bold text-slate-900 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 inline-block">
+                          {carga.vehiculoPlaca}
+                        </span>
+                      </td>
+
+                      {/* Conductor */}
+                      <td className="py-2.5 px-3">
+                        <div className="font-medium text-slate-800">
+                          {carga.conductorNombre}
+                        </div>
+                        {carga.notaConductor && (
+                          <div className="text-[10px] text-amber-700 flex items-center space-x-1 mt-0.5 max-w-xs truncate" title={carga.notaConductor}>
+                            <MessageSquare className="w-2.5 h-2.5 flex-shrink-0" />
+                            <span className="truncate">{carga.notaConductor}</span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Estación / Servicio */}
+                      <td className="py-2.5 px-3">
+                        <div className="text-slate-800 font-medium">
+                          {carga.estacion || 'Estación Bomba'}
+                        </div>
+                        {carga.servicioDestino && (
+                          <span className="inline-flex items-center text-[10px] text-emerald-800 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200 mt-0.5">
+                            {carga.servicioDestino}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Volumen & Monto */}
+                      <td className="py-2.5 px-3">
+                        <div className="font-mono font-bold text-slate-900">
+                          ₡{Number(carga.totalPagado).toLocaleString()}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          {carga.litros} L • {carga.tipoCombustible}
+                        </div>
+                      </td>
+
+                      {/* Odómetro */}
+                      <td className="py-2.5 px-3 font-mono text-slate-700">
+                        {Number(carga.odometroActual).toLocaleString()} km
+                        {carga.rendimientoKmL ? (
+                          <div className="text-[10px] text-emerald-700 font-sans font-medium">
+                            {carga.rendimientoKmL.toFixed(1)} km/L
+                          </div>
+                        ) : null}
+                      </td>
+
+                      {/* Estado */}
+                      <td className="py-2.5 px-3">
+                        <span
+                          className={`text-[10px] font-semibold px-2 py-0.5 rounded border inline-block ${
+                            carga.estadoValidacion === 'VALIDADO'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : carga.estadoValidacion === 'RECHAZADO'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : carga.estadoValidacion === 'REQUIERE_REVISION'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : 'bg-slate-100 text-slate-800 border-slate-200'
+                          }`}
+                        >
+                          {carga.estadoValidacion === 'VALIDADO'
+                            ? 'Validado'
+                            : carga.estadoValidacion === 'RECHAZADO'
+                            ? 'Rechazado'
+                            : carga.estadoValidacion === 'REQUIERE_REVISION'
+                            ? 'En Revisión'
+                            : 'Pendiente'}
+                        </span>
+                      </td>
+
+                      {/* Acciones */}
+                      <td className="py-2.5 px-3 text-right">
+                        <div className="flex items-center justify-end space-x-1.5">
+                          <button
+                            onClick={() => abrirModal(carga, 'edicion')}
+                            className="p-1.5 rounded-md hover:bg-slate-100 text-slate-600 hover:text-slate-900 transition-colors"
+                            title="Editar factura"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => abrirModal(carga, 'auditoria')}
+                            className="px-2 py-1 rounded bg-slate-900 hover:bg-slate-800 text-white text-[11px] font-semibold transition-colors flex items-center space-x-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Auditar</span>
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : (
+        /* VISTA DE TARJETAS */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {cargasFiltradas.map((carga) => {
             const ticketId = carga.numeroTicket || carga.datosIA?.numeroTicket || 'S/N';

@@ -177,27 +177,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const navContent = (
-    <div className="flex flex-col h-full bg-[#f8fafc] text-slate-700 border-r border-slate-200 w-52 sm:w-56 select-none">
+    <div className="flex flex-col h-full bg-[#F6F6F8]/95 backdrop-blur-md text-slate-700 border-r border-black/[0.08] w-56 sm:w-60 select-none">
       {/* Header móvil */}
-      <div className="lg:hidden p-3 border-b border-slate-200 flex items-center justify-between">
-        <span className="font-semibold text-xs text-slate-900">Menú de Navegación</span>
+      <div className="lg:hidden p-3.5 border-b border-black/[0.06] flex items-center justify-between">
+        <span className="font-bold text-xs text-[#1C1C1E]">Navegación</span>
         <button
           onClick={onCloseMobileMenu}
-          className="p-1 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-200/60"
+          className="p-1.5 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-black/[0.05]"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Indicador de Rol */}
-      <div className="px-3 py-2 border-b border-slate-200/80 flex items-center justify-between">
+      <div className="px-3.5 py-2.5 border-b border-black/[0.06] flex items-center justify-between">
         <div className="flex items-center space-x-2">
           <div
-            className={`w-1.5 h-1.5 rounded-full ${
-              isAdmin ? 'bg-slate-700' : 'bg-emerald-600'
+            className={`w-2 h-2 rounded-full ${
+              isAdmin ? 'bg-[#007AFF]' : 'bg-[#34C759]'
             }`}
           />
-          <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
             {isAdmin ? 'Administración' : 'Conductor'}
           </span>
         </div>
@@ -205,7 +205,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="hidden lg:flex p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors"
+            className="hidden lg:flex p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-black/[0.05] transition-colors"
             title="Ocultar barra lateral"
           >
             <PanelLeftClose className="w-3.5 h-3.5" />
@@ -214,7 +214,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Lista de Enlaces */}
-      <nav className="flex-1 px-1.5 py-2 space-y-0.5 overflow-y-auto">
+      <nav className="flex-1 px-2 py-3 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const Icon = item.icon;
           const isActive = vistaActiva === item.id;
@@ -224,21 +224,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={item.id}
               id={`sidebar-link-${item.id}`}
               onClick={() => handleSelect(item.id)}
-              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold active:scale-[0.98] transition-all ${
                 isActive
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'hover:bg-slate-200/60 text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#007AFF] text-white shadow-xs'
+                  : 'hover:bg-black/[0.04] text-slate-700 hover:text-black'
               }`}
             >
               <div className="flex items-center space-x-2.5 truncate">
-                <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                 <span className="truncate">{item.label}</span>
               </div>
 
               {item.badge && (
                 <span
-                  className={`text-[9px] px-1.5 py-0.2 rounded font-bold ml-1.5 ${
-                    isActive ? 'bg-slate-800 text-white' : 'bg-slate-200 text-slate-800'
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-bold ml-1.5 ${
+                    isActive ? 'bg-white/20 text-white' : 'bg-[#FF3B30] text-white shadow-xs'
                   }`}
                 >
                   {item.badge}
@@ -250,11 +250,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Pie de barra */}
-      <div className="p-2.5 border-t border-slate-200 text-[10px] text-slate-500 bg-slate-100/50">
+      <div className="p-3 border-t border-black/[0.06] text-[11px] text-slate-500 bg-white/40">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-slate-600">FlotaControl</span>
-          <span className="text-slate-600 font-mono text-[9px] bg-white px-1.5 py-0.2 rounded border border-slate-200">
-            v2.4
+          <span className="font-semibold text-slate-700">FlotaControl</span>
+          <span className="text-slate-600 font-mono text-[10px] bg-white px-2 py-0.5 rounded-md border border-black/[0.08] shadow-2xs">
+            v2.4 HIG
           </span>
         </div>
       </div>

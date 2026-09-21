@@ -68,10 +68,10 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   return (
     <nav
       id="mobile-bottom-nav"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-sm border-t border-slate-200 px-2 py-0.5 safe-area-pb"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/85 backdrop-blur-2xl border-t border-black/[0.08] px-2 pt-1.5 pb-2 safe-area-pb transition-all"
       aria-label="Navegación Móvil Principal"
     >
-      <div className="flex items-center justify-around h-13 max-w-md mx-auto">
+      <div className="flex items-center justify-around h-12 max-w-md mx-auto">
         {items.map((item) => {
           const Icon = item.icon;
           const isActive = vistaActiva === item.id;
@@ -81,22 +81,22 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               key={item.id}
               id={`btn-bottom-nav-${item.id}`}
               onClick={() => setVistaActiva(item.id)}
-              className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] min-w-[44px] relative rounded-md transition-colors ${
+              className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] min-w-[44px] relative rounded-xl active:scale-90 transition-all ${
                 isActive
-                  ? 'text-slate-900'
-                  : 'text-slate-400 hover:text-slate-700'
+                  ? 'text-[#007AFF]'
+                  : 'text-slate-400 hover:text-slate-600'
               }`}
             >
               <div className="relative flex flex-col items-center">
-                <Icon className={`w-4 h-4 ${isActive ? 'stroke-[2.2px] text-slate-900' : 'stroke-[1.7px] text-slate-400'}`} />
+                <Icon className={`w-5 h-5 transition-transform ${isActive ? 'stroke-[2.4px] scale-105 text-[#007AFF]' : 'stroke-[1.8px] text-slate-400'}`} />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1 -right-2 min-w-[14px] h-3.5 px-0.5 rounded-full bg-slate-900 text-white text-[8px] font-bold flex items-center justify-center">
+                  <span className="absolute -top-1 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3B30] text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
                     {item.badge}
                   </span>
                 )}
                 <span
-                  className={`text-[10px] mt-1 font-medium tracking-tight ${
-                    isActive ? 'text-slate-900 font-semibold' : 'text-slate-500'
+                  className={`text-[10px] mt-1 tracking-tight ${
+                    isActive ? 'text-[#007AFF] font-bold' : 'text-slate-500 font-medium'
                   }`}
                 >
                   {item.label}

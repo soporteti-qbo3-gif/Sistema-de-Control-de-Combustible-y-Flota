@@ -54,6 +54,9 @@ async function startServer() {
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
 
+  // 🛡️ Configuración de proxy para entornos contenerizados (Cloud Run / Nginx)
+  app.set('trust proxy', 1);
+
   // 🛡️ Inicialización de observabilidad y rastreo de errores con Sentry
   initSentry(app);
 
@@ -67,6 +70,7 @@ async function startServer() {
     max: 10,
     standardHeaders: true,
     legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
     message: {
       error: 'TOO_MANY_REQUESTS',
       message: 'Demasiadas solicitudes al proxy de Gemini. Por favor intente más tarde.',

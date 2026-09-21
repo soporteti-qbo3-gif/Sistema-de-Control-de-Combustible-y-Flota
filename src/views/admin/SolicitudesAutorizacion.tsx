@@ -16,6 +16,7 @@ import {
   Gauge,
   DollarSign,
   AlertCircle,
+  AlertTriangle,
   Copy,
   Check,
   Send,
@@ -38,7 +39,9 @@ export const SolicitudesAutorizacion: React.FC = () => {
   const [solicitudRechazo, setSolicitudRechazo] = useState<SolicitudAutorizacion | null>(null);
   const [motivoRechazo, setMotivoRechazo] = useState('');
   const [procesando, setProcesando] = useState(false);
+  const [procesandoId, setProcesandoId] = useState<string | null>(null);
   const [mensajeAlerta, setMensajeAlerta] = useState<string | null>(null);
+  const [errorAlerta, setErrorAlerta] = useState<string | null>(null);
 
   const cargarDatos = async () => {
     try {
@@ -59,18 +62,30 @@ export const SolicitudesAutorizacion: React.FC = () => {
   }, []);
 
   const handleAprobar = async (id: string) => {
+    if (procesando || procesandoId) return;
     setProcesando(true);
+    setProcesandoId(id);
+    setErrorAlerta(null);
     try {
       const res = await api.aprobarSolicitud(id);
       setMensajeAlerta(
-        `Solicitud aprobada con éxito. Código de autorización generado: ${res.solicitud.codigoAutorizacion}. Conductor notificado en su app.`
+        `Solicitud aprobada con éxito. Código de autorización generado: ${
+          res.solicitud?.codigoAutorizacion || (res as any)?.codigoAutorizacion || 'AUT'
+        }. Conductor notificado en su app.`
       );
       setTimeout(() => setMensajeAlerta(null), 6000);
       await cargarDatos();
     } catch (e: any) {
-      alert('Error al aprobar: ' + e.message);
+      const mensaje =
+        e?.response?.data?.message ||
+        e?.response?.data?.error ||
+        e?.message ||
+        'Error al aprobar la solicitud';
+      setErrorAlerta(mensaje);
+      setTimeout(() => setErrorAlerta(null), 7000);
     } finally {
       setProcesando(false);
+      setProcesandoId(null);
     }
   };
 
@@ -160,6 +175,13 @@ export const SolicitudesAutorizacion: React.FC = () => {
         <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg flex items-center space-x-2 text-xs text-emerald-800">
           <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
           <span className="font-medium">{mensajeAlerta}</span>
+        </div>
+      )}
+
+      {errorAlerta && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-lg flex items-center space-x-2 text-xs text-rose-800">
+          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0" />
+          <span className="font-medium">{errorAlerta}</span>
         </div>
       )}
 
@@ -369,18 +391,27 @@ export const SolicitudesAutorizacion: React.FC = () => {
                         <button
                           id={`btn-aprobar-${sol.id}`}
                           onClick={() => handleAprobar(sol.id)}
-                          disabled={procesando}
-                          className="flex-1 lg:w-full px-3.5 py-2 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50"
+                          disabled={procesando || procesandoId === sol.id}
+                          className="flex-1 lg:w-full px-3.5 py-2 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors flex items-center justify-center space-x-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Aprobar y Emitir Token</span>
+                          {procesandoId === sol.id ? (
+                            <>
+                              <RefreshCw className="w-3.5 h-3.5 animate-spin text-slate-300" />
+                              <span>Autorizando...</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Aprobar y Emitir Token</span>
+                            </>
+                          )}
                         </button>
 
                         <button
                           id={`btn-rechazar-${sol.id}`}
                           onClick={() => setSolicitudRechazo(sol)}
-                          disabled={procesando}
-                          className="flex-1 lg:w-full px-3 py-1.5 rounded-md bg-slate-100 hover:bg-rose-50 hover:border-rose-300 border border-slate-200 text-slate-700 hover:text-rose-700 text-xs font-medium transition-colors flex items-center justify-center space-x-1"
+                          disabled={procesando || procesandoId === sol.id}
+                          className="flex-1 lg:w-full px-3 py-1.5 rounded-md bg-slate-100 hover:bg-rose-50 hover:border-rose-300 border border-slate-200 text-slate-700 hover:text-rose-700 text-xs font-medium transition-colors flex items-center justify-center space-x-1 disabled:opacity-50"
                         >
                           <XCircle className="w-3.5 h-3.5" />
                           <span>Rechazar</span>

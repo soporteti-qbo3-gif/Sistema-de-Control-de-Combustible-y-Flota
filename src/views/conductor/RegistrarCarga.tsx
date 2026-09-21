@@ -251,11 +251,12 @@ export const RegistrarCarga: React.FC<RegistrarCargaProps> = ({ setVistaActiva }
         setVistaActiva('conductor-cargas');
       }, 1500);
     } catch (err: any) {
-      if (err.message && err.message.includes('DUPLICADA')) {
+      const serverMsg = err?.response?.data?.message || err?.message || 'Error al registrar la carga';
+      if (serverMsg.includes('DUPLICADA') || err?.response?.data?.error === 'CARGA_DUPLICADA') {
         setEsDuplicado(true);
-        setDuplicadoDetalle(err.message);
+        setDuplicadoDetalle(serverMsg);
       }
-      setErrorMsg(err.message || 'Error al registrar la carga');
+      setErrorMsg(serverMsg);
     } finally {
       setGuardando(false);
     }

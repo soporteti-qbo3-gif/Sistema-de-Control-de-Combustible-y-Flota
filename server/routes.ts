@@ -7,7 +7,13 @@ import { Router, Response } from 'express';
 import { z } from 'zod';
 // 🔒 SEGURIDAD: Importación de express-rate-limit para mitigación de ataques de fuerza bruta
 import rateLimit from 'express-rate-limit';
-import { db, generarTicketSvgBase64, generarOdometroSvgBase64 } from './db';
+import {
+  db,
+  generarTicketSvgBase64,
+  generarOdometroSvgBase64,
+  autorizarSolicitudAtomic,
+  registrarCargaAtomic,
+} from './db';
 import {
   generarToken,
   middlewareAutenticacion,
@@ -55,6 +61,7 @@ const loginRateLimiter = rateLimit({
   max: process.env.NODE_ENV === 'production' ? 10 : 200,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
   message: {
     error: 'DEMASIADOS_INTENTOS',
     message: 'Demasiados intentos de inicio de sesión. Por favor espere 15 minutos antes de reintentar.',
@@ -824,37 +831,59 @@ apiRouter.post('/solicitudes', middlewareAutenticacion, (req: AuthenticatedReque
   res.status(201).json(nuevaSolicitud);
 });
 
-apiRouter.post('/solicitudes/:id/aprobar', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/solicitudes/:id/aprobar', middlewareAutenticacion, requiereAdmin, async (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
-  const solicitud = db.solicitudes.find((s) => s.id === id);
+  const { montoAutorizado, estacionId } = req.body;
 
-  if (!solicitud) {
-    res.status(404).json({ error: 'Solicitud no encontrada.' });
-    return;
+  try {
+    const solicitudExistente = db.solicitudes.find((s) => s.id === id);
+    if (!solicitudExistente) {
+      res.status(404).json({ error: 'Solicitud no encontrada.' });
+      return;
+    }
+
+    const montoFinal = Number(
+      montoAutorizado ||
+        solicitudExistente.montoMaximoEstimado ||
+        solicitudExistente.litrosSolicitados * 700
+    );
+
+    const resultado = await db.autorizarSolicitudAtomic(
+      id,
+      req.user?.userId || 'usr-admin-1',
+      montoFinal,
+      estacionId || solicitudExistente.estacionSugerida
+    );
+
+    // Enviar notificación al Conductor con el código de autorización
+    notificarConductorAprobacion(resultado.solicitud, resultado.solicitud.codigoAutorizacion || '');
+
+    res.json({
+      message: 'Solicitud aprobada con éxito. Código de autorización generado y notificado al conductor.',
+      solicitud: resultado.solicitud,
+      saldo: resultado.saldo,
+      movimiento: resultado.movimiento,
+    });
+  } catch (err: any) {
+    if (err.code === 'ESTADO_INVALIDO' || err.message?.includes('ESTADO_INVALIDO')) {
+      res.status(409).json({
+        error: 'ESTADO_INVALIDO',
+        message: 'Esta solicitud ya fue autorizada o procesada por otro administrador',
+      });
+      return;
+    }
+    if (err.code === 'SALDO_INSUFICIENTE' || err.message?.includes('SALDO_INSUFICIENTE')) {
+      res.status(400).json({
+        error: 'SALDO_INSUFICIENTE',
+        message: 'No hay saldo suficiente en la estación. Contacte al administrador financiero',
+      });
+      return;
+    }
+    res.status(400).json({
+      error: err.code || 'ERROR_AUTORIZACION',
+      message: err.message || 'Error al autorizar la solicitud.',
+    });
   }
-
-  if (solicitud.estado !== 'PENDIENTE') {
-    res.status(400).json({ error: `La solicitud ya está en estado ${solicitud.estado}.` });
-    return;
-  }
-
-  // 🧠 LÓGICA: Mantener el código de autorización existente de la solicitud o generar uno si no estuviese presente
-  const codigoAutorizacion = solicitud.codigoAutorizacion || `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
-
-  solicitud.estado = 'APROBADA';
-  solicitud.codigoAutorizacion = codigoAutorizacion;
-  solicitud.aprobadoPor = req.user?.nombre || 'Administrador';
-  solicitud.fechaAprobacion = new Date().toISOString();
-  // 🧠 LÓGICA: Persistir la aprobación en data.json
-  db.guardarDatos();
-
-  // Enviar notificación al Conductor con el código de autorización
-  notificarConductorAprobacion(solicitud, codigoAutorizacion);
-
-  res.json({
-    message: 'Solicitud aprobada con éxito. Código de autorización generado y notificado al conductor.',
-    solicitud,
-  });
 });
 
 apiRouter.post('/solicitudes/:id/rechazar', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
@@ -1298,96 +1327,106 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
   solicitudPendiente.estado = 'COMPLETADA';
   const idSolicitudFinal = solicitudAutorizacionId || solicitudPendiente.id;
 
-  const nuevaCarga: CargaCombustible = {
-    id: `CRG-${Date.now().toString().slice(-6)}`,
-    fecha: new Date().toISOString(),
-    conductorId: req.user!.userId,
-    conductorNombre,
-    vehiculoId: vehiculo.id,
-    vehiculoPlaca: vehiculo.placa,
-    solicitudAutorizacionId: idSolicitudFinal,
-    codigoAutorizacion: codigoIngresado,
-    estacion: estacion || 'Gasolinera en ruta',
-    numeroTicket: folioFinal,
-    claveNumerica: claveFinal,
-    tipoCombustible: tipoCombustible || vehiculo.tipoCombustible,
-    litros: numLitros,
-    precioPorLitro: Number(precioPorLitro) || Number((numTotal / (numLitros || 1)).toFixed(2)),
-    totalPagado: numTotal,
-    odometroAnterior,
-    odometroActual: numOdoActual,
-    kmRecorridos: metricas.kmRecorridos,
-    costoPorKm: metricas.costoPorKm,
-    rendimientoKmL: metricas.rendimientoKmL,
-    estadoValidacion: hayAnomalia ? 'REQUIERE_REVISION' : 'PENDIENTE',
-    notaConductor: notaConductor ? String(notaConductor).trim() : undefined,
-    fotoFacturaUrl,
-    fotoOdometroUrl,
-    datosIA: datosIA || {
-      estacion,
+  try {
+    const resultadoCarga = await db.registrarCargaAtomic({
+      vehiculoId: vehiculo.id,
+      estacionId: estacion,
+      estacion: estacion || 'Gasolinera en ruta',
+      monto: numTotal,
+      totalPagado: numTotal,
+      galones: Number((numLitros / 3.78541).toFixed(2)),
+      litros: numLitros,
+      precioPorLitro: Number(precioPorLitro) || Number((numTotal / (numLitros || 1)).toFixed(2)),
+      odometroInicio: odometroAnterior,
+      odometroFinal: numOdoActual,
+      conductorId: req.user!.userId,
+      conductorNombre,
+      fotoFacturaBase64,
+      fotoOdometroBase64,
+      imagenBase64: fotoFacturaUrl,
+      solicitudAutorizacionId: idSolicitudFinal,
+      codigoAutorizacion: codigoIngresado,
       numeroTicket: folioFinal,
       claveNumerica: claveFinal,
-      litros: numLitros,
-      totalPagado: numTotal,
-      odometroLeido: numOdoActual,
-      confianzaScore: 95,
-      advertencias: [],
-    },
-    anomaliaDetectada: hayAnomalia,
-    motivoAnomalia: hayAnomalia ? motivoFinal : undefined,
-    esDuplicado: false,
-  };
-
-  db.cargas.unshift(nuevaCarga);
-
-  vehiculo.odometroActual = numOdoActual;
-
-  // 🧠 LÓGICA: Registro automático de la lectura de odómetro en el historial para auditoría y antifraude
-  const nuevaLectura: LecturaOdometro = {
-    id: `ODO-${Date.now()}`,
-    vehiculoId: vehiculo.id,
-    km: numOdoActual,
-    fecha: nuevaCarga.fecha,
-    registradoPorId: req.user!.userId,
-    registradoPorNombre: conductorNombre,
-    observaciones: `Lectura registrada en despacho de combustible #${nuevaCarga.id} (${numLitros} L)`,
-  };
-  db.lecturasOdometro.unshift(nuevaLectura);
-
-  // 🧠 LÓGICA: Persistir el nuevo estado, odómetro y lecturas en data.json
-  db.guardarDatos();
-
-  // Si se detectó anomalía o sospecha de fraude, despachar notificaciones y correo
-  if (hayAnomalia) {
-    notificarAdminAlertaAnomalia(nuevaCarga, vehiculo);
-
-    const correosAdmins = db.usuarios
-      .filter((u) => (u.rol === 'ADMIN' || u.esAdminPrincipal) && u.email)
-      .map((u) => u.email);
-
-    if (correosAdmins.length > 0) {
-      enviarAlertaFraude(correosAdmins, {
-        vehiculoPlaca: vehiculo.placa,
-        vehiculoModelo: `${vehiculo.marca} ${vehiculo.modelo}`,
-        conductorNombre,
-        litrosCargados: numLitros,
-        capacidadTanqueLitros: vehiculo.capacidadTanqueLitros,
-        litrosEsperados:
-          metricas.kmRecorridos > 0 && vehiculo.rendimientoTeoricoKmL > 0
-            ? Number((metricas.kmRecorridos / vehiculo.rendimientoTeoricoKmL).toFixed(2))
-            : undefined,
-        excesoLitros: antifraude.detalles.excesoCapacidadLitros,
-        porcentajeDesviacion: antifraude.detalles.desviacionRendimientoPorcentaje,
+      tipoCombustible: tipoCombustible || vehiculo.tipoCombustible,
+      notaConductor: notaConductor ? String(notaConductor).trim() : undefined,
+      datosIA: datosIA || {
         estacion,
-        motivo: motivoFinal,
-        nivelAlerta:
-          antifraude.nivelRiesgo === 'CRITICO' ? 'CRITICO' : antifraude.nivelRiesgo === 'ALTO' ? 'ROJO' : 'AMARILLO',
-        fecha: nuevaCarga.fecha,
-      }).catch((e) => captureException(e, { context: 'enviarAlertaFraude POST /cargas' }));
-    }
-  }
+        numeroTicket: folioFinal,
+        claveNumerica: claveFinal,
+        litros: numLitros,
+        totalPagado: numTotal,
+        odometroLeido: numOdoActual,
+        confianzaScore: 95,
+        advertencias: [],
+      },
+    });
 
-  res.status(201).json(nuevaCarga);
+    const nuevaCarga = resultadoCarga.carga;
+
+    // Si se detectó anomalía o sospecha de fraude, despachar notificaciones y correo
+    if (hayAnomalia) {
+      nuevaCarga.anomaliaDetectada = true;
+      nuevaCarga.motivoAnomalia = motivoFinal;
+      nuevaCarga.estadoValidacion = 'REQUIERE_REVISION';
+      db.guardarDatos();
+
+      notificarAdminAlertaAnomalia(nuevaCarga, vehiculo);
+
+      const correosAdmins = db.usuarios
+        .filter((u) => (u.rol === 'ADMIN' || u.esAdminPrincipal) && u.email)
+        .map((u) => u.email);
+
+      if (correosAdmins.length > 0) {
+        enviarAlertaFraude(correosAdmins, {
+          vehiculoPlaca: vehiculo.placa,
+          vehiculoModelo: `${vehiculo.marca} ${vehiculo.modelo}`,
+          conductorNombre,
+          litrosCargados: numLitros,
+          capacidadTanqueLitros: vehiculo.capacidadTanqueLitros,
+          litrosEsperados:
+            metricas.kmRecorridos > 0 && vehiculo.rendimientoTeoricoKmL > 0
+              ? Number((metricas.kmRecorridos / vehiculo.rendimientoTeoricoKmL).toFixed(2))
+              : undefined,
+          excesoLitros: antifraude.detalles.excesoCapacidadLitros,
+          porcentajeDesviacion: antifraude.detalles.desviacionRendimientoPorcentaje,
+          estacion,
+          motivo: motivoFinal,
+          nivelAlerta:
+            antifraude.nivelRiesgo === 'CRITICO' ? 'CRITICO' : antifraude.nivelRiesgo === 'ALTO' ? 'ROJO' : 'AMARILLO',
+          fecha: nuevaCarga.fecha,
+        }).catch((e) => captureException(e, { context: 'enviarAlertaFraude POST /cargas' }));
+      }
+    }
+
+    res.status(201).json(nuevaCarga);
+  } catch (err: any) {
+    if (err.code === 'CARGA_DUPLICADA' || err.message?.includes('CARGA_DUPLICADA')) {
+      res.status(409).json({
+        error: 'CARGA_DUPLICADA',
+        message: 'Esta carga ya fue registrada. Verifique sus cargas anteriores',
+      });
+      return;
+    }
+    if (err.code === 'ODOMETRO_INVALIDO' || err.message?.includes('ODOMETRO_INVALIDO')) {
+      res.status(400).json({
+        error: 'ODOMETRO_INVALIDO',
+        message: 'El odómetro no es válido. Debe ser mayor a la última lectura registrada',
+      });
+      return;
+    }
+    if (err.code === 'SALDO_INSUFICIENTE' || err.message?.includes('SALDO_INSUFICIENTE')) {
+      res.status(400).json({
+        error: 'SALDO_INSUFICIENTE',
+        message: 'No hay saldo suficiente en la estación. Contacte al administrador financiero',
+      });
+      return;
+    }
+    res.status(400).json({
+      error: err.code || 'ERROR_CARGA',
+      message: err.message || 'Error al procesar la carga atómicamente.',
+    });
+  }
 });
 
 // 🛡️ AUDITORÍA ANTI-FRAUDE: Análisis EXIF de imágenes (Comprobante / Odómetro)

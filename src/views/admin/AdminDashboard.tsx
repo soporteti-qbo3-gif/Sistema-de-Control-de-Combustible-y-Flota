@@ -1,42 +1,29 @@
 /**
- * Dashboard Ejecutivo Compacto para Administrador de Flota
- * - Grid de 4 tarjetas métricas (2 cols en móvil, 4 en desktop):
- *   1. Kilómetros totales del mes
- *   2. Costo total del mes (CRC ₡)
- *   3. Rendimiento promedio (km/L)
- *   4. Vehículos activos
- * - Gráfica compacta ajustada al ancho del contenedor
- * - Accesos rápidos con botones icono a validación y reportes
- * - Cero scroll vertical en desktop, mínimo en móvil
+ * Dashboard Ejecutivo de Operaciones de Flota & Combustible
+ * Diseño sobrio, sin sobrecarga de tarjetas, alta densidad informativa y control directo.
  */
 
 import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
-  DollarSign,
-  Fuel,
   Gauge,
-  AlertTriangle,
-  FileCheck2,
-  Send,
-  Truck,
-  Users,
-  Wrench,
-  TrendingUp,
-  ArrowUpRight,
-  Sparkles,
-  ChevronRight,
-  RefreshCw,
   CheckCircle2,
   KeyRound,
   BarChart3,
-  Settings,
   Wallet,
-  PlusCircle,
+  ArrowUpRight,
+  TrendingUp,
+  Clock,
+  ChevronRight,
+  RefreshCw,
+  Truck,
+  Building2,
+  AlertTriangle,
+  FileCheck2,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { MetricasFlota, CargaCombustible, SolicitudAutorizacion, SaldoEstacion } from '../../types';
-import { LiquidButton } from '../../components/ui/LiquidButton';
 import {
   ResponsiveContainer,
   BarChart,
@@ -45,20 +32,8 @@ import {
   YAxis,
   Tooltip,
   CartesianGrid,
-  Cell,
   Legend,
 } from 'recharts';
-
-const COLORES_BARRAS = [
-  '#475569', // slate-600
-  '#0284c7', // sky-600
-  '#059669', // emerald-600
-  '#d97706', // amber-600
-  '#7c3aed', // violet-600
-  '#0d9488', // teal-600
-  '#4f46e5', // indigo-600
-  '#64748b', // slate-500
-];
 
 interface AdminDashboardProps {
   setVistaActiva: (v: string) => void;
@@ -71,6 +46,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
   const [saldos, setSaldos] = useState<SaldoEstacion[]>([]);
   const [datosGrafico, setDatosGrafico] = useState<any[]>([]);
   const [cargando, setCargando] = useState(true);
+  const [tabCola, setTabCola] = useState<'cargas' | 'solicitudes'>('cargas');
+  const [vistaGrafico, setVistaGrafico] = useState<'gasto' | 'comparativa'>('comparativa');
 
   const cargarDashboard = async () => {
     setCargando(true);
@@ -106,8 +83,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
     cargarDashboard();
   }, []);
 
-  const [tipoGrafico, setTipoGrafico] = useState<'multicolor' | 'comparativa'>('multicolor');
-
   const totalSaldoDisponible = saldos.reduce((acc, s) => acc + s.saldoActual, 0);
   const bombasEnAlerta = saldos.filter((s) => s.enAlerta || s.saldoActual <= s.umbralAlerta);
 
@@ -124,336 +99,494 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
         ];
 
   return (
-    <div className="space-y-3 w-full max-w-7xl mx-auto pb-16 lg:pb-4">
-      {/* Header Compacto & Accesos Rápidos con Botones Icono */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-xs">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-7 h-7 rounded-md bg-slate-900 text-white flex items-center justify-center flex-shrink-0">
-            <LayoutDashboard className="w-3.5 h-3.5" />
+    <div className="w-full max-w-7xl mx-auto space-y-5 pb-16">
+      {/* 1. Header Ejecutivo con Large Title al estilo Apple iOS / macOS */}
+      <div className="flex flex-col lg:flex-row lg:items-end justify-between pb-2 gap-4">
+        <div>
+          <div className="flex items-center space-x-2.5 mb-1">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#34C759] ring-4 ring-[#34C759]/20" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+              Operaciones de Flota • Turno Activo
+            </span>
           </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <h1 className="text-sm sm:text-base font-semibold text-slate-900 leading-tight">
-                Panel de Control de Flota
-              </h1>
-              <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                En Vivo
-              </span>
-            </div>
-            <p className="text-[11px] text-slate-500 leading-tight">
-              Auditoría de combustible, odómetros, vales y saldos prepago
-            </p>
-          </div>
+          <h1 className="text-2xl sm:text-3xl font-bold text-[#1C1C1E] tracking-tight">
+            Control de Flota y Combustible
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Monitoreo en vivo de saldos en bombas, odómetros certificados y auditoría fotográfica
+          </p>
         </div>
 
-        {/* Botones Icono de Acceso Rápido con Liquid Ripple & Feedback */}
-        <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
-          <LiquidButton
-            id="btn-dash-validar"
-            variant="primary"
-            size="sm"
+        {/* Botones de Comando Operativo con estilo Apple HIG */}
+        <div className="flex items-center space-x-2 flex-wrap gap-y-2">
+          <button
             onClick={() => setVistaActiva('admin-validacion')}
-            title="Validar comprobantes y facturas"
-            icon={<CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+            className="apple-press-feedback flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0066D6] text-white text-xs font-semibold shadow-xs"
           >
-            Validar ({cargasPendientes.length})
-          </LiquidButton>
+            <CheckCircle2 className="w-4 h-4 text-white" />
+            <span>Auditoría IA</span>
+            {cargasPendientes.length > 0 && (
+              <span className="ml-1 px-1.5 py-0.2 bg-white text-[#007AFF] rounded-full text-[10px] font-bold">
+                {cargasPendientes.length}
+              </span>
+            )}
+          </button>
 
-          <LiquidButton
-            id="btn-dash-saldos"
-            variant="secondary"
-            size="sm"
+          <button
             onClick={() => setVistaActiva('admin-saldos')}
-            className="border-emerald-200 text-emerald-900 bg-emerald-50 hover:bg-emerald-100"
-            title="Gestión de saldos prepago y caja chica"
-            icon={<Wallet className="w-3.5 h-3.5 text-emerald-700" />}
+            className={`apple-press-feedback flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+              bombasEnAlerta.length > 0
+                ? 'bg-[#FF9500]/10 text-[#C97700] border-[#FF9500]/30 hover:bg-[#FF9500]/20'
+                : 'bg-white text-slate-700 border-black/[0.08] hover:bg-black/[0.02]'
+            }`}
           >
-            Saldos ({bombasEnAlerta.length > 0 ? `${bombasEnAlerta.length} Alertas` : 'OK'})
-          </LiquidButton>
+            <Wallet className="w-3.5 h-3.5 text-slate-500" />
+            <span>Saldos Bombas</span>
+            {bombasEnAlerta.length > 0 && (
+              <span className="text-[10px] font-bold">
+                • {bombasEnAlerta.length} Alerta
+              </span>
+            )}
+          </button>
 
-          <LiquidButton
-            id="btn-dash-solicitudes"
-            variant="ghost"
-            size="sm"
+          <button
             onClick={() => setVistaActiva('admin-solicitudes')}
-            className="border border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-800"
-            title="Solicitudes de autorización"
-            icon={<KeyRound className="w-3.5 h-3.5 text-amber-600" />}
+            className="apple-press-feedback flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-black/[0.08] hover:bg-black/[0.02] text-slate-700 text-xs font-semibold transition-all"
           >
-            Tokens ({solicitudesPendientes.length})
-          </LiquidButton>
+            <KeyRound className="w-3.5 h-3.5 text-slate-500" />
+            <span>Tokens</span>
+            {solicitudesPendientes.length > 0 && (
+              <span className="px-1.5 py-0.2 bg-black/[0.06] text-slate-800 rounded-md text-[10px] font-mono font-bold">
+                {solicitudesPendientes.length}
+              </span>
+            )}
+          </button>
 
           <button
             onClick={() => setVistaActiva('admin-reportes')}
-            className="p-1.5 rounded-md bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 transition-colors"
-            title="Reportes y Comparativas"
+            className="apple-press-feedback p-2 rounded-xl bg-white border border-black/[0.08] text-slate-600 hover:text-black hover:bg-black/[0.02] transition-all"
+            title="Reportes comparativos"
           >
             <BarChart3 className="w-4 h-4" />
           </button>
-        </div>
-      </div>
 
-      {/* Banner Resumen de Saldos Prepago y Alertas */}
-      <div className="bg-slate-900 text-white rounded-lg p-3 sm:p-3.5 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 shadow-xs">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 rounded-md bg-slate-800 border border-slate-700 text-emerald-400 flex items-center justify-center flex-shrink-0">
-            <Wallet className="w-4 h-4" />
-          </div>
-          <div>
-            <div className="flex items-center space-x-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-300">
-                Saldo Disponible en Bombas
-              </span>
-              {bombasEnAlerta.length > 0 ? (
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                  {bombasEnAlerta.length} bajo umbral
-                </span>
-              ) : (
-                <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                  Fondos Óptimos
-                </span>
-              )}
-            </div>
-            <p className="text-base sm:text-lg font-bold font-mono text-emerald-400 mt-0.5">
-              ₡{totalSaldoDisponible.toLocaleString('es-CR')} CRC
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2 w-full sm:w-auto">
           <button
-            onClick={() => setVistaActiva('admin-saldos')}
-            className="flex-1 sm:flex-none px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition-colors flex items-center justify-center space-x-1.5"
+            onClick={cargarDashboard}
+            disabled={cargando}
+            className="apple-press-feedback p-2 rounded-xl bg-white border border-black/[0.08] text-slate-600 hover:text-black hover:bg-black/[0.02] transition-all"
+            title="Refrescar datos"
           >
-            <PlusCircle className="w-3.5 h-3.5" />
-            <span>Gestionar y Depositar</span>
+            <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </div>
 
-      {/* Grid de 4 Tarjetas Métricas Clave (2 columnas en móvil, 4 en desktop) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-3">
-        {/* KPI 1: Kilómetros / Horas Totales del Mes */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Km Recorridos Mes</span>
-            <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-slate-600">
-              <Gauge className="w-3 h-3" />
+      {/* 2. Ribbon de Métricas Continuo (Ledger Inset Grouped de alta densidad) */}
+      <div className="bg-white border border-black/[0.06] rounded-2xl overflow-hidden shadow-xs divide-y sm:divide-y-0 sm:divide-x divide-black/[0.06] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
+        {/* Métrica 1: Saldo Prepago en Estaciones */}
+        <div
+          onClick={() => setVistaActiva('admin-saldos')}
+          className="p-4 hover:bg-black/[0.015] transition-colors cursor-pointer flex flex-col justify-between group"
+        >
+          <div className="flex items-center justify-between text-slate-500 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Saldo en Bombas
+            </span>
+            <div className="w-6 h-6 rounded-lg bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF]">
+              <Wallet className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <span className="text-lg font-mono font-bold text-slate-900">
+            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+              ₡{totalSaldoDisponible.toLocaleString('es-CR')}
+            </div>
+            <div className="flex items-center space-x-2 mt-1.5">
+              {bombasEnAlerta.length > 0 ? (
+                <span className="text-[10px] font-bold text-[#FF3B30] bg-[#FF3B30]/10 px-2 py-0.5 rounded-full">
+                  {bombasEnAlerta.length} bajo umbral
+                </span>
+              ) : (
+                <span className="text-[10px] font-bold text-[#248A3D] bg-[#34C759]/10 px-2 py-0.5 rounded-full">
+                  Fondos activos
+                </span>
+              )}
+              <span className="text-[11px] text-slate-400">3 estaciones</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Métrica 2: Kilometraje Recorrido */}
+        <div className="p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Recorrido Mensual
+            </span>
+            <div className="w-6 h-6 rounded-lg bg-[#34C759]/10 flex items-center justify-center text-[#34C759]">
+              <Gauge className="w-3.5 h-3.5" />
+            </div>
+          </div>
+          <div>
+            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
               {metricas?.totalKmRecorridos
                 ? Number(metricas.totalKmRecorridos).toLocaleString()
                 : '14,850'}
-            </span>
-            <span className="text-[11px] font-medium text-slate-500 ml-1">km</span>
+              <span className="text-xs font-normal text-slate-500 ml-1">km</span>
+            </div>
+            <div className="flex items-center space-x-1 mt-1.5 text-[11px] text-[#248A3D] font-semibold">
+              <TrendingUp className="w-3 h-3" />
+              <span>+8.2% vs mes anterior</span>
+            </div>
           </div>
-          <span className="text-[10px] text-emerald-700 font-medium mt-0.5">
-            +8.2% vs mes anterior
-          </span>
         </div>
 
-        {/* KPI 2: Costo Total del Mes */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Gasto Combustible</span>
-            <div className="w-5 h-5 rounded bg-emerald-50 text-emerald-700 flex items-center justify-center">
-              <DollarSign className="w-3 h-3" />
+        {/* Métrica 3: Consumo e Inversión */}
+        <div className="p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Combustible Facturado
+            </span>
+            <div className="w-6 h-6 rounded-lg bg-[#AF52DE]/10 flex items-center justify-center text-[#AF52DE]">
+              <Building2 className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <span className="text-lg font-mono font-bold text-slate-900">
+            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
               ₡{metricas?.gastoTotalCombustible
                 ? Number(metricas.gastoTotalCombustible).toLocaleString()
                 : '1,485,000'}
-            </span>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1.5 font-medium">
+              {metricas?.totalLitrosCargados || 2150} Litros despachados
+            </div>
           </div>
-          <span className="text-[10px] text-slate-500 mt-0.5">
-            {metricas?.totalLitrosCargados || 2150} Litros consumidos
-          </span>
         </div>
 
-        {/* KPI 3: Rendimiento Promedio */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between shadow-xs">
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Rendimiento Promedio</span>
-            <div className="w-5 h-5 rounded bg-amber-50 text-amber-700 flex items-center justify-center">
-              <TrendingUp className="w-3 h-3" />
+        {/* Métrica 4: Rendimiento */}
+        <div className="p-4 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Rendimiento Promedio
+            </span>
+            <div className="w-6 h-6 rounded-lg bg-[#FF9500]/10 flex items-center justify-center text-[#FF9500]">
+              <SlidersHorizontal className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <span className="text-lg font-mono font-bold text-slate-900">
+            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
               {metricas?.rendimientoPromedioFlotaKmL
                 ? metricas.rendimientoPromedioFlotaKmL.toFixed(1)
                 : '7.8'}
-            </span>
-            <span className="text-[11px] font-medium text-slate-500 ml-1">km/L</span>
-          </div>
-          <span className="text-[10px] text-emerald-700 font-medium mt-0.5">
-            Eficiencia óptima
-          </span>
-        </div>
-
-        {/* KPI 4: Vehículos Activos */}
-        <div
-          onClick={() => setVistaActiva('admin-vehiculos')}
-          className="bg-white border border-slate-200 rounded-lg p-3 flex flex-col justify-between cursor-pointer hover:border-slate-400 transition-colors shadow-xs"
-        >
-          <div className="flex items-center justify-between text-slate-500 mb-1">
-            <span className="text-[11px] font-medium">Vehículos Activos</span>
-            <div className="w-5 h-5 rounded bg-slate-100 flex items-center justify-center text-slate-600">
-              <Truck className="w-3 h-3" />
+              <span className="text-xs font-normal text-slate-500 ml-1">km/L</span>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1.5">
+              Consumo ponderado en ruta
             </div>
           </div>
-          <div className="flex items-baseline space-x-1.5">
-            <span className="text-lg font-mono font-bold text-slate-900">
-              {metricas?.totalVehiculos || 19}
+        </div>
+
+        {/* Métrica 5: Vehículos & Conductores */}
+        <div
+          onClick={() => setVistaActiva('admin-vehiculos')}
+          className="p-4 hover:bg-black/[0.015] transition-colors cursor-pointer flex flex-col justify-between group"
+        >
+          <div className="flex items-center justify-between text-slate-500 mb-1.5">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              Parque Vehicular
             </span>
-            <span className="text-[11px] text-slate-500 font-medium">unidades activas</span>
+            <div className="w-6 h-6 rounded-lg bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF]">
+              <Truck className="w-3.5 h-3.5" />
+            </div>
           </div>
-          <span className="text-[10px] text-slate-500 mt-0.5">
-            {metricas?.totalConductores || 6} conductores asignados
-          </span>
+          <div>
+            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+              {metricas?.totalVehiculos || 19}
+              <span className="text-xs font-normal text-slate-500 ml-1">unidades</span>
+            </div>
+            <div className="text-[11px] text-slate-400 mt-1.5 flex items-center space-x-1">
+              <span>{metricas?.totalConductores || 6} conductores asignados</span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Gráfica Compacta de Barras (Evolución de Combustible y Kilómetros con Colores) */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3.5 sm:p-4 shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2.5 gap-2">
-          <div className="flex items-center space-x-2">
-            <div className="w-6 h-6 rounded bg-slate-100 border border-slate-200 text-slate-700 flex items-center justify-center flex-shrink-0">
-              <BarChart3 className="w-3.5 h-3.5" />
-            </div>
+      {/* 3. Área Operacional en Dos Columnas (Gráfica Técnica + Cola de Atención Inmediata) */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        {/* Columna Izquierda: Evolución y Registro de Consumo (7 cols) */}
+        <div className="lg:col-span-7 bg-white border border-black/[0.06] rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-black/[0.06] gap-3">
             <div>
-              <h2 className="text-xs sm:text-sm font-semibold text-slate-900 leading-tight">
-                Evolución Mensual de Consumo y Recorrido
+              <h2 className="text-sm sm:text-base font-bold text-[#1C1C1E]">
+                Evolución de Gasto & Kilometraje
               </h2>
-              <p className="text-[10px] text-slate-500">
-                Gasto en combustible (₡) y kilometraje por período
+              <p className="text-xs text-slate-500">
+                Historial semestral por período de facturación
               </p>
             </div>
-          </div>
 
-          <div className="flex items-center space-x-2">
-            <div className="bg-slate-100 p-0.5 rounded-md flex items-center border border-slate-200 text-[11px] font-medium">
+            {/* Selector de Perspectiva (Segmented Control estilo iOS) */}
+            <div className="flex items-center bg-black/[0.05] p-1 rounded-xl text-xs">
               <button
-                onClick={() => setTipoGrafico('multicolor')}
-                className={`px-2.5 py-1 rounded transition-colors ${
-                  tipoGrafico === 'multicolor'
-                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                onClick={() => setVistaGrafico('comparativa')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  vistaGrafico === 'comparativa'
+                    ? 'bg-white text-[#1C1C1E] shadow-xs'
+                    : 'text-slate-600 hover:text-black'
                 }`}
               >
-                Gasto por Mes (₡)
+                Gasto vs Km
               </button>
               <button
-                onClick={() => setTipoGrafico('comparativa')}
-                className={`px-2.5 py-1 rounded transition-colors ${
-                  tipoGrafico === 'comparativa'
-                    ? 'bg-white text-slate-900 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
+                onClick={() => setVistaGrafico('gasto')}
+                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                  vistaGrafico === 'gasto'
+                    ? 'bg-white text-[#1C1C1E] shadow-xs'
+                    : 'text-slate-600 hover:text-black'
                 }`}
               >
-                Gasto vs Recorrido
+                Solo Gasto (₡)
               </button>
             </div>
           </div>
-        </div>
 
-        <div className="h-48 sm:h-56 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart
-              data={chartData}
-              margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E2E8F0" />
-              <XAxis dataKey="mes" tick={{ fontSize: 10, fill: '#64748B', fontWeight: 600 }} tickLine={false} />
-              <YAxis
-                yAxisId="left"
-                tick={{ fontSize: 10, fill: '#64748B' }}
-                tickFormatter={(v) => `₡${(v / 1000).toFixed(0)}k`}
-                tickLine={false}
-              />
-              {tipoGrafico === 'comparativa' && (
-                <YAxis
-                  yAxisId="right"
-                  orientation="right"
-                  tick={{ fontSize: 10, fill: '#059669' }}
-                  tickFormatter={(v) => `${(v / 1000).toFixed(0)}k km`}
+          <div className="h-64 sm:h-72 w-full pt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={chartData}
+                margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(60, 60, 67, 0.08)" />
+                <XAxis
+                  dataKey="mes"
+                  tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }}
                   tickLine={false}
+                  axisLine={{ stroke: 'rgba(60, 60, 67, 0.12)' }}
                 />
-              )}
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: '#0F172A',
-                  borderRadius: '6px',
-                  border: '1px solid #334155',
-                  color: '#fff',
-                  fontSize: '11px',
-                  padding: '6px 10px',
-                }}
-                formatter={(value: any, name: any) => [
-                  name === 'gasto' || name === 'Gasto Combustible'
-                    ? `₡${Number(value).toLocaleString()} CRC`
-                    : `${Number(value).toLocaleString()} km`,
-                  name === 'gasto' || name === 'Gasto Combustible' ? 'Gasto Combustible' : 'Recorrido',
-                ]}
-              />
-              {tipoGrafico === 'comparativa' ? (
-                <>
-                  <Legend
-                    wrapperStyle={{ fontSize: '11px', paddingTop: '4px' }}
-                    iconType="circle"
-                  />
-                  <Bar
-                    yAxisId="left"
-                    dataKey="gasto"
-                    fill="#475569"
-                    radius={[4, 4, 0, 0]}
-                    name="Gasto Combustible (₡)"
-                  />
-                  <Bar
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 10, fill: '#64748B' }}
+                  tickFormatter={(v) => `₡${(v / 1000).toFixed(0)}k`}
+                  tickLine={false}
+                  axisLine={false}
+                />
+                {vistaGrafico === 'comparativa' && (
+                  <YAxis
                     yAxisId="right"
-                    dataKey="km"
-                    fill="#059669"
-                    radius={[4, 4, 0, 0]}
-                    name="Recorrido (km)"
+                    orientation="right"
+                    tick={{ fontSize: 10, fill: '#34C759' }}
+                    tickFormatter={(v) => `${(v / 1000).toFixed(0)}k km`}
+                    tickLine={false}
+                    axisLine={false}
                   />
-                </>
-              ) : (
+                )}
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'rgba(28, 28, 30, 0.95)',
+                    borderRadius: '14px',
+                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    color: '#FFFFFF',
+                    fontSize: '12px',
+                    padding: '10px 14px',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+                  }}
+                  formatter={(value: any, name: any) => [
+                    name === 'Gasto Combustible' || name === 'gasto'
+                      ? `₡${Number(value).toLocaleString()} CRC`
+                      : `${Number(value).toLocaleString()} km`,
+                    name === 'Gasto Combustible' || name === 'gasto'
+                      ? 'Gasto Combustible'
+                      : 'Recorrido',
+                  ]}
+                />
+                <Legend
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
+                  iconType="circle"
+                />
                 <Bar
                   yAxisId="left"
                   dataKey="gasto"
-                  radius={[4, 4, 0, 0]}
-                  name="Gasto Combustible"
-                >
-                  {chartData.map((_entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={COLORES_BARRAS[index % COLORES_BARRAS.length]}
-                    />
-                  ))}
-                </Bar>
-              )}
-            </BarChart>
-          </ResponsiveContainer>
+                  fill="#007AFF"
+                  radius={[6, 6, 0, 0]}
+                  name="Gasto Combustible (₡)"
+                />
+                {vistaGrafico === 'comparativa' && (
+                  <Bar
+                    yAxisId="right"
+                    dataKey="km"
+                    fill="#34C759"
+                    radius={[6, 6, 0, 0]}
+                    name="Recorrido (km)"
+                  />
+                )}
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
         </div>
 
-        {/* Indicadores de Paleta de Colores */}
-        {tipoGrafico === 'multicolor' && (
-          <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2 border-t border-slate-100 mt-1.5">
-            {chartData.map((d: any, idx: number) => (
-              <div key={d.mes} className="flex items-center space-x-1.5 text-[10px] text-slate-600 font-medium">
-                <span
-                  className="w-2 h-2 rounded-full inline-block"
-                  style={{ backgroundColor: COLORES_BARRAS[idx % COLORES_BARRAS.length] }}
-                />
-                <span>{d.mes}</span>
+        {/* Columna Derecha: Cola de Atención Inmediata (5 cols) */}
+        <div className="lg:col-span-5 bg-white border border-black/[0.06] rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+          <div>
+            <div className="flex items-center justify-between pb-3.5 border-b border-black/[0.06]">
+              {/* Segmented Control para tabs */}
+              <div className="flex items-center bg-black/[0.05] p-1 rounded-xl">
+                <button
+                  onClick={() => setTabCola('cargas')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    tabCola === 'cargas'
+                      ? 'bg-white text-[#1C1C1E] shadow-xs'
+                      : 'text-slate-500 hover:text-black'
+                  }`}
+                >
+                  Auditorías ({cargasPendientes.length})
+                </button>
+                <button
+                  onClick={() => setTabCola('solicitudes')}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                    tabCola === 'solicitudes'
+                      ? 'bg-white text-[#1C1C1E] shadow-xs'
+                      : 'text-slate-500 hover:text-black'
+                  }`}
+                >
+                  Tokens ({solicitudesPendientes.length})
+                </button>
               </div>
-            ))}
+
+              <span className="text-[11px] text-slate-400 uppercase font-mono font-bold">
+                Prioridad
+              </span>
+            </div>
+
+            {/* Lista Tabular de Cargas por Auditar */}
+            {tabCola === 'cargas' && (
+              <div className="divide-y divide-black/[0.04] mt-2">
+                {cargasPendientes.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <div className="w-12 h-12 rounded-full bg-[#34C759]/10 text-[#34C759] flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-[#1C1C1E]">
+                      Auditorías al día
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      No hay cargas pendientes de verificación fotográfica.
+                    </p>
+                  </div>
+                ) : (
+                  cargasPendientes.slice(0, 4).map((carga) => (
+                    <div
+                      key={carga.id}
+                      className="py-3 flex items-center justify-between hover:bg-black/[0.02] px-2 rounded-xl transition-all group cursor-pointer"
+                      onClick={() => setVistaActiva('admin-validacion')}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs font-bold text-[#1C1C1E] bg-black/[0.05] px-2 py-0.5 rounded-md">
+                            {carga.vehiculoPlaca || 'FLOTA'}
+                          </span>
+                          <span className="text-xs font-bold text-[#1C1C1E] truncate">
+                            {carga.conductorNombre || 'Conductor'}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-1">
+                          <span className="font-semibold text-slate-700">{carga.litros} L</span>
+                          <span>•</span>
+                          <span className="font-mono">₡{Number(carga.totalPagado).toLocaleString()}</span>
+                          <span>•</span>
+                          <span className="truncate">{carga.estacion}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        {carga.estadoValidacion === 'REQUIERE_REVISION' ? (
+                          <span className="text-[10px] font-bold text-[#C97700] bg-[#FF9500]/15 px-2.5 py-0.5 rounded-full">
+                            Revisión
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-2.5 py-0.5 rounded-full">
+                            Pendiente
+                          </span>
+                        )}
+                        <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[#007AFF] transition-colors" />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Lista Tabular de Solicitudes de Autorización */}
+            {tabCola === 'solicitudes' && (
+              <div className="divide-y divide-black/[0.04] mt-2">
+                {solicitudesPendientes.length === 0 ? (
+                  <div className="py-12 text-center space-y-2">
+                    <div className="w-12 h-12 rounded-full bg-[#34C759]/10 text-[#34C759] flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm font-bold text-[#1C1C1E]">
+                      Sin solicitudes en espera
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Todos los tokens han sido emitidos o completados.
+                    </p>
+                  </div>
+                ) : (
+                  solicitudesPendientes.slice(0, 4).map((sol) => (
+                    <div
+                      key={sol.id}
+                      className="py-3 flex items-center justify-between hover:bg-black/[0.02] px-2 rounded-xl transition-all group cursor-pointer"
+                      onClick={() => setVistaActiva('admin-solicitudes')}
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="flex items-center space-x-2">
+                          <span className="font-mono text-xs font-bold text-[#1C1C1E] bg-black/[0.05] px-2 py-0.5 rounded-md">
+                            {sol.vehiculoPlaca || 'UNIDAD'}
+                          </span>
+                          <span className="text-xs font-bold text-[#1C1C1E] truncate">
+                            {sol.conductorNombre}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-1">
+                          <span className="font-bold text-[#248A3D]">
+                            {sol.litrosSolicitados} Litros
+                          </span>
+                          <span>•</span>
+                          <span className="truncate">{sol.estacionSugerida || 'Bomba'}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center space-x-2 flex-shrink-0">
+                        <span className="text-[10px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-2.5 py-0.5 rounded-full">
+                          Emitir
+                        </span>
+                        <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[#007AFF] transition-colors" />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
           </div>
-        )}
+
+          {/* Enlace al pie del panel para ir a la vista completa */}
+          <div className="pt-4 border-t border-black/[0.06] flex items-center justify-between mt-2">
+            <span className="text-[11px] text-slate-400">
+              {tabCola === 'cargas'
+                ? `${cargasPendientes.length} cargas registradas en espera`
+                : `${solicitudesPendientes.length} conductores esperando autorización`}
+            </span>
+            <button
+              onClick={() =>
+                setVistaActiva(
+                  tabCola === 'cargas' ? 'admin-validacion' : 'admin-solicitudes'
+                )
+              }
+              className="text-xs font-bold text-[#007AFF] hover:underline flex items-center space-x-1"
+            >
+              <span>Abrir Módulo</span>
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

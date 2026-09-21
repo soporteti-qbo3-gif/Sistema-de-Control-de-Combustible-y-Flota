@@ -71,15 +71,15 @@ export const Navbar: React.FC<NavbarProps> = ({
   const noLeidasCount = notificaciones.filter((n) => !n.leido).length;
 
   return (
-    <header id="app-header" className="sticky top-0 z-40 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-900 w-full">
+    <header id="app-header" className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-black/[0.08] text-[#1C1C1E] w-full transition-all">
       <div className="w-full px-3 sm:px-6">
-        <div className="flex items-center justify-between h-13">
+        <div className="flex items-center justify-between h-14">
           {/* Logo y Nombre */}
           <div className="flex items-center space-x-3">
             <button
               id="btn-mobile-menu-toggle"
               onClick={onOpenMobileMenu}
-              className="lg:hidden p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"
+              className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-black/[0.05] active:scale-95 transition-all focus:outline-none"
               aria-label="Abrir menú"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -90,35 +90,35 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 id="btn-desktop-sidebar-toggle"
                 onClick={onToggleSidebar}
-                className="hidden lg:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-slate-600 hover:text-slate-900 hover:bg-slate-100 border border-slate-200 text-xs font-medium transition-colors"
+                className="hidden lg:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-slate-700 hover:text-black hover:bg-black/[0.05] border border-black/[0.08] text-xs font-semibold active:scale-95 transition-all shadow-xs"
                 title={sidebarCollapsed ? "Desplegar barra lateral" : "Colapsar barra lateral"}
               >
                 {sidebarCollapsed ? (
                   <>
-                    <PanelLeftOpen className="w-4 h-4 text-slate-700" />
-                    <span className="text-xs text-slate-700">Expandir</span>
+                    <PanelLeftOpen className="w-4 h-4 text-[#007AFF]" />
+                    <span className="text-xs text-[#007AFF]">Expandir</span>
                   </>
                 ) : (
                   <>
                     <PanelLeftClose className="w-4 h-4 text-slate-500" />
-                    <span className="text-xs text-slate-500">Colapsar</span>
+                    <span className="text-xs text-slate-600">Colapsar</span>
                   </>
                 )}
               </button>
             )}
 
             <div
-              className="flex items-center space-x-2.5 cursor-pointer select-none"
+              className="flex items-center space-x-2.5 cursor-pointer select-none group"
               onClick={() => setVistaActiva(usuario?.rol === 'ADMIN' ? 'admin-dashboard' : 'conductor-home')}
             >
-              <div className="w-8 h-8 rounded-md bg-slate-900 flex items-center justify-center text-white">
+              <div className="w-8 h-8 rounded-xl bg-[#007AFF] flex items-center justify-center text-white shadow-xs group-hover:scale-105 transition-transform">
                 <Truck className="w-4 h-4" />
               </div>
               <div>
                 <div className="flex items-center space-x-2">
-                  <span className="font-semibold text-base text-slate-900 tracking-tight">FlotaControl</span>
-                  <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                    <Sparkles className="w-3 h-3 mr-1 text-slate-600" />
+                  <span className="font-bold text-base text-[#1C1C1E] tracking-tight">FlotaControl</span>
+                  <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#007AFF]/10 text-[#007AFF]">
+                    <Sparkles className="w-3 h-3 mr-1 text-[#007AFF]" />
                     IA Gemini
                   </span>
                 </div>
@@ -135,10 +135,10 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               id="btn-nav-unit-tests"
               onClick={() => setVistaActiva('pruebas-unitarias')}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold active:scale-95 transition-all ${
                 vistaActiva === 'pruebas-unitarias'
-                  ? 'bg-slate-900 text-white'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  ? 'bg-[#007AFF] text-white shadow-xs'
+                  : 'bg-black/[0.04] text-slate-700 hover:bg-black/[0.08]'
               }`}
               title="Suite de pruebas de validación"
             >
@@ -154,16 +154,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setDropdownNotifOpen(!dropdownNotifOpen);
                   setDropdownUserOpen(false);
                 }}
-                className={`relative p-1.5 rounded-md transition-colors border ${
+                className={`relative p-2 rounded-xl transition-all active:scale-95 border ${
                   dropdownNotifOpen || vistaActiva === 'centro-notificaciones'
-                    ? 'bg-slate-100 text-slate-900 border-slate-300'
-                    : 'bg-white text-slate-700 hover:bg-slate-100 border-slate-200'
+                    ? 'bg-black/[0.08] text-slate-900 border-black/20'
+                    : 'bg-white text-slate-700 hover:bg-black/[0.04] border-black/[0.08]'
                 }`}
                 title="Avisos y Notificaciones"
               >
                 <Bell className="w-4 h-4" />
                 {noLeidasCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-slate-900 text-white font-bold text-[9px] flex items-center justify-center">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3B30] text-white font-bold text-[9px] flex items-center justify-center shadow-xs">
                     {noLeidasCount}
                   </span>
                 )}
@@ -175,19 +175,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="fixed inset-0 z-40" onClick={() => setDropdownNotifOpen(false)} />
                   <div
                     id="dropdown-notificaciones-panel"
-                    className="absolute right-0 mt-1.5 w-80 sm:w-96 bg-white border border-slate-200 rounded-lg shadow-md z-50 p-2.5 animate-in fade-in duration-100"
+                    className="absolute right-0 mt-2 w-80 sm:w-96 bg-white/95 backdrop-blur-xl border border-black/[0.08] rounded-2xl shadow-xl z-50 p-3 animate-in fade-in zoom-in-95 duration-150"
                   >
-                    <div className="flex items-center justify-between border-b border-slate-100 pb-2 px-1 mb-2">
+                    <div className="flex items-center justify-between border-b border-black/[0.06] pb-2.5 px-1 mb-2">
                       <div className="flex items-center space-x-1.5">
-                        <Bell className="w-3.5 h-3.5 text-slate-700" />
-                        <span className="text-xs font-semibold text-slate-900">Notificaciones</span>
+                        <Bell className="w-4 h-4 text-[#007AFF]" />
+                        <span className="text-xs font-bold text-[#1C1C1E]">Notificaciones</span>
                       </div>
                       <button
                         onClick={() => {
                           setVistaActiva('centro-notificaciones');
                           setDropdownNotifOpen(false);
                         }}
-                        className="text-[11px] text-slate-600 hover:text-slate-900 font-medium flex items-center"
+                        className="text-[11px] text-[#007AFF] hover:underline font-semibold flex items-center"
                       >
                         Ver todas <ArrowRight className="w-3 h-3 ml-0.5" />
                       </button>
@@ -195,7 +195,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                     <div className="space-y-1.5 max-h-72 overflow-y-auto">
                       {notificaciones.length === 0 ? (
-                        <p className="text-xs text-slate-500 text-center py-4">No hay avisos pendientes.</p>
+                        <p className="text-xs text-slate-500 text-center py-5">No hay avisos pendientes.</p>
                       ) : (
                         notificaciones.map((n) => (
                           <div
@@ -205,26 +205,26 @@ export const Navbar: React.FC<NavbarProps> = ({
                               if (n.accionUrl) setVistaActiva(n.accionUrl);
                               setDropdownNotifOpen(false);
                             }}
-                            className={`p-2 rounded-md text-left cursor-pointer transition-colors border ${
+                            className={`p-2.5 rounded-xl text-left cursor-pointer transition-all border ${
                               n.leido
-                                ? 'bg-slate-50/50 border-slate-100 text-slate-600'
-                                : 'bg-slate-50 border-slate-200 text-slate-900 font-medium'
+                                ? 'bg-black/[0.02] border-black/[0.04] text-slate-600'
+                                : 'bg-[#007AFF]/[0.04] border-[#007AFF]/20 text-[#1C1C1E] font-medium'
                             }`}
                           >
-                            <div className="flex items-center justify-between mb-0.5">
-                              <span className="text-xs font-medium truncate pr-2 text-slate-900">{n.titulo}</span>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-semibold truncate pr-2 text-[#1C1C1E]">{n.titulo}</span>
                               <span
-                                className={`text-[9px] px-1.5 py-0.2 rounded font-medium uppercase ${
+                                className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
                                   n.prioridad === 'URGENTE'
-                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                    : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                    ? 'bg-[#FF3B30]/10 text-[#FF3B30]'
+                                    : 'bg-black/[0.05] text-slate-700'
                                 }`}
                               >
                                 {n.prioridad}
                               </span>
                             </div>
                             <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">{n.contenido}</p>
-                            <span className="text-[9px] text-slate-400 mt-1 block">
+                            <span className="text-[9px] text-slate-400 mt-1.5 block font-mono">
                               {new Date(n.fecha).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
@@ -244,7 +244,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   setDropdownUserOpen(!dropdownUserOpen);
                   setDropdownNotifOpen(false);
                 }}
-                className="flex items-center space-x-2 bg-white hover:bg-slate-50 border border-slate-200 px-2.5 py-1 rounded-md transition-colors text-left"
+                className="flex items-center space-x-2 bg-white hover:bg-black/[0.03] border border-black/[0.08] px-2.5 py-1.5 rounded-xl active:scale-95 transition-all text-left shadow-xs"
               >
                 <UserAvatar
                   nombre={usuario?.nombre}
@@ -255,12 +255,12 @@ export const Navbar: React.FC<NavbarProps> = ({
 
                 <div className="hidden sm:block">
                   <div className="flex items-center space-x-1.5">
-                    <span className="text-xs font-medium text-slate-900">{usuario?.nombre}</span>
+                    <span className="text-xs font-bold text-[#1C1C1E]">{usuario?.nombre}</span>
                     <span
-                      className={`text-[9px] px-1.5 py-0.2 rounded font-medium uppercase ${
+                      className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase ${
                         usuario?.rol === 'ADMIN'
-                          ? 'bg-slate-100 text-slate-800 border border-slate-200'
-                          : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          ? 'bg-[#007AFF]/10 text-[#007AFF]'
+                          : 'bg-[#34C759]/10 text-[#248A3D]'
                       }`}
                     >
                       {usuario?.rol === 'ADMIN' ? 'Admin' : 'Conductor'}
@@ -277,14 +277,14 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="fixed inset-0 z-40" onClick={() => setDropdownUserOpen(false)} />
                   <div
                     id="dropdown-demo-users"
-                    className="absolute right-0 mt-1.5 w-76 bg-white border border-slate-200 rounded-lg shadow-md z-50 p-1.5 animate-in fade-in duration-100"
+                    className="absolute right-0 mt-2 w-76 bg-white/95 backdrop-blur-xl border border-black/[0.08] rounded-2xl shadow-xl z-50 p-2 animate-in fade-in zoom-in-95 duration-150"
                   >
-                    <div className="px-2.5 py-1.5 border-b border-slate-100 mb-1">
-                      <p className="text-xs font-semibold text-slate-900">
+                    <div className="px-2.5 py-2 border-b border-black/[0.06] mb-1.5">
+                      <p className="text-xs font-bold text-[#1C1C1E]">
                         Cambiar Rol / Cuenta
                       </p>
                       <p className="text-[11px] text-slate-500">
-                        Selecciona un usuario de prueba
+                        Selecciona un usuario del sistema
                       </p>
                     </div>
 
@@ -304,10 +304,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                                 setVistaActiva('conductor-home');
                               }
                             }}
-                            className={`w-full flex items-start space-x-2.5 p-2 rounded-md transition-colors text-left ${
+                            className={`w-full flex items-start space-x-2.5 p-2 rounded-xl transition-all text-left ${
                               isCurrent
-                                ? 'bg-slate-100 text-slate-900'
-                                : 'hover:bg-slate-50 text-slate-700'
+                                ? 'bg-[#007AFF] text-white shadow-xs'
+                                : 'hover:bg-black/[0.04] text-slate-700'
                             }`}
                           >
                             <UserAvatar
@@ -317,25 +317,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between">
-                                <span className="text-xs font-medium text-slate-900 truncate">
+                                <span className={`text-xs font-bold truncate ${isCurrent ? 'text-white' : 'text-[#1C1C1E]'}`}>
                                   {demo.nombre}
                                 </span>
                                 <span
-                                  className={`text-[9px] px-1.5 py-0.2 rounded font-medium uppercase ${
-                                    demo.rol === 'ADMIN'
-                                      ? 'bg-slate-200 text-slate-800'
-                                      : 'bg-emerald-50 text-emerald-800'
+                                  className={`text-[9px] px-1.5 py-0.5 rounded-full font-bold uppercase ${
+                                    isCurrent
+                                      ? 'bg-white/20 text-white'
+                                      : demo.rol === 'ADMIN'
+                                      ? 'bg-black/[0.06] text-slate-800'
+                                      : 'bg-[#34C759]/15 text-[#248A3D]'
                                   }`}
                                 >
                                   {demo.rol}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              <p className={`text-[11px] truncate mt-0.5 ${isCurrent ? 'text-white/80' : 'text-slate-500'}`}>
                                 {demo.descripcion}
                               </p>
                             </div>
                             {isCurrent && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-slate-900 mt-0.5 flex-shrink-0" />
+                              <CheckCircle2 className="w-4 h-4 text-white mt-0.5 flex-shrink-0" />
                             )}
                           </button>
                         );

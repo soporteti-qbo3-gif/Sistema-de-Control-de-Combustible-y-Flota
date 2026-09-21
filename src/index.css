@@ -1,29 +1,74 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    /* Apple HIG Design Tokens */
+    --apple-system-bg: #F2F2F7;
+    --apple-secondary-bg: #FFFFFF;
+    --apple-tertiary-bg: #E5E5EA;
+    --apple-grouped-bg: #F2F2F7;
+    --apple-secondary-grouped-bg: #FFFFFF;
+
+    /* Apple System Colors */
+    --apple-blue: #007AFF;
+    --apple-green: #34C759;
+    --apple-orange: #FF9500;
+    --apple-red: #FF3B30;
+    --apple-purple: #AF52DE;
+    --apple-teal: #30B0C7;
+    --apple-gray: #8E8E93;
+    --apple-gray2: #AEAEB2;
+    --apple-gray3: #C7C7CC;
+    --apple-gray4: #D1D1D6;
+    --apple-gray5: #E5E5EA;
+    --apple-gray6: #F2F2F7;
+
+    /* Apple Labels & Separators */
+    --apple-label-primary: #000000;
+    --apple-label-secondary: rgba(60, 60, 67, 0.60);
+    --apple-label-tertiary: rgba(60, 60, 67, 0.30);
+    --apple-label-quaternary: rgba(60, 60, 67, 0.18);
+    --apple-separator: rgba(60, 60, 67, 0.12);
+    --apple-opaque-separator: #C6C6C8;
+
+    /* Apple Materials & Elevation */
+    --apple-corner-radius-sm: 10px;
+    --apple-corner-radius: 16px;
+    --apple-corner-radius-lg: 22px;
+    --apple-corner-radius-pill: 9999px;
+    --apple-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+    --apple-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+    --apple-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+  }
+
   * {
-    border-color: #e2e8f0;
+    border-color: rgba(60, 60, 67, 0.12);
   }
 
   body {
-    background-color: #f8fafc;
-    color: #0f172a;
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: var(--apple-system-bg);
+    color: #1c1c1e;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Plus Jakarta Sans', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.011em;
+    letter-spacing: -0.015em;
   }
 
-  /* Focus states: clean crisp outline */
+  code, kbd, samp, pre, .font-mono {
+    font-family: 'SF Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    letter-spacing: -0.02em;
+  }
+
+  /* Focus states: Apple HIG subtle focus ring */
   :focus-visible {
-    outline: 2px solid #0f172a;
-    outline-offset: 1px;
+    outline: 2px solid #007AFF;
+    outline-offset: 2px;
   }
 
-  /* Minimalist subtle scrollbar */
+  /* Apple iOS/macOS styled minimalist scrollbar */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
 
   ::-webkit-scrollbar-track {
@@ -31,13 +76,42 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: #cbd5e1;
-    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.16);
+    border-radius: 9999px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
+    background: rgba(0, 0, 0, 0.28);
   }
+}
+
+/* Apple iOS/macOS Touch Feedback & Micro-interactions */
+.apple-press-feedback {
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), opacity 0.12s ease;
+}
+.apple-press-feedback:active {
+  transform: scale(0.96);
+  opacity: 0.88;
+}
+
+/* Translucent Frosted Glass Materials */
+.apple-ultra-thin-material {
+  background-color: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+}
+
+.apple-thick-material {
+  background-color: rgba(255, 255, 255, 0.90);
+  backdrop-filter: blur(30px) saturate(190%);
+  -webkit-backdrop-filter: blur(30px) saturate(190%);
+}
+
+.apple-grouped-card {
+  background-color: #FFFFFF;
+  border-radius: var(--apple-corner-radius);
+  border: 1px solid rgba(60, 60, 67, 0.08);
+  box-shadow: var(--apple-shadow-card);
 }
 
 /* Liquid Utilities & Jakub Antalík Style Animations */

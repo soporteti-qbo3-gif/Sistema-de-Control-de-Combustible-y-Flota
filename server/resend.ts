@@ -51,6 +51,7 @@ export interface ResultadoEmail {
   id?: string;
   simulated?: boolean;
   error?: string;
+  advertenciaSandbox?: string;
 }
 
 /**
