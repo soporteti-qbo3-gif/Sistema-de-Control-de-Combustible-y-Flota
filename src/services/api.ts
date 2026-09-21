@@ -34,59 +34,15 @@ function getAuthHeaders(): HeadersInit {
   return headers;
 }
 
-let refreshPromise: Promise<string | null> | null = null;
-
-async function renewToken(): Promise<string | null> {
-  if (refreshPromise) {
-    return refreshPromise;
-  }
-  refreshPromise = (async () => {
-    try {
-      localStorage.removeItem('flota_token');
-      const email = localStorage.getItem('flota_user_email') || 'admin@flota.com';
-      const loginRes = await window.fetch(`${API_BASE}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-      if (!loginRes.ok) {
-        return null;
-      }
-      const data = await loginRes.json();
-      if (data && data.token) {
-        localStorage.setItem('flota_token', data.token);
-        if (data.usuario?.email) {
-          localStorage.setItem('flota_user_email', data.usuario.email);
-        }
-        window.dispatchEvent(new CustomEvent('flota_auth_renewed', { detail: data }));
-        return data.token;
-      }
-      return null;
-    } catch (e) {
-      console.warn('Error renovando token automáticamente:', e);
-      return null;
-    } finally {
-      refreshPromise = null;
-    }
-  })();
-  return refreshPromise;
-}
-
 async function customFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  let res = await window.fetch(input, init);
+  const res = await window.fetch(input, init);
 
   const urlStr = typeof input === 'string' ? input : input.toString();
-  // Si devuelve 401 y no es la petición de login, renovar token automáticamente y reintentar
+  // 🔒 SEGURIDAD (1.1): Cuando el backend devuelva 401, limpiar tokens y notificar cierre de sesión
   if (res.status === 401 && !urlStr.includes('/auth/login')) {
-    const newToken = await renewToken();
-    if (newToken) {
-      const headers = new Headers(init?.headers || {});
-      headers.set('Authorization', `Bearer ${newToken}`);
-      res = await window.fetch(input, {
-        ...init,
-        headers,
-      });
-    }
+    localStorage.removeItem('flota_token');
+    localStorage.removeItem('flota_user_email');
+    window.dispatchEvent(new CustomEvent('flota_auth_logout'));
   }
 
   return res;
@@ -110,11 +66,11 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   // Autenticación
-  async login(email: string): Promise<{ token: string; usuario: Usuario }> {
+  async login(email: string, password?: string): Promise<{ token: string; usuario: Usuario }> {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email }),
+      body: JSON.stringify({ email, password }),
     });
     return handleResponse(res);
   },
@@ -1041,6 +997,7 @@ export const api = {
     const res = await fetch(`${API_BASE}/reset-demo`, {
       method: 'POST',
       headers: getAuthHeaders(),
+      body: JSON.stringify({ confirmacion: 'REINICIAR_TODO_CONFIRMADO' }),
     });
     return handleResponse(res);
   },

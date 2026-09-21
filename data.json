@@ -509,12 +509,27 @@
       "rendimientoTeoricoKmL": 12,
       "controlaKilometraje": true,
       "estado": "Activo"
+    },
+    {
+      "id": "veh-test-unit-2-1790029123753",
+      "placa": "CR-T2-3753",
+      "marca": "Nissan",
+      "modelo": "Frontier Test",
+      "anio": 2024,
+      "tipoVehiculo": "Liviano",
+      "tipoCombustible": "Diesel",
+      "capacidadTanqueLitros": 80,
+      "odometroInicial": 20000,
+      "odometroActual": 30400,
+      "rendimientoTeoricoKmL": 12,
+      "controlaKilometraje": true,
+      "estado": "Activo"
     }
   ],
   "solicitudes": [
     {
-      "id": "sol-race-1790011415122",
-      "fechaSolicitud": "2026-09-21T17:23:35.122Z",
+      "id": "sol-race-1790029123776",
+      "fechaSolicitud": "2026-09-21T22:18:43.776Z",
       "conductorId": "usr-cond-test",
       "conductorNombre": "Conductor Concurrente",
       "conductorTelefono": "8888-0005",
@@ -526,9 +541,9 @@
       "motivo": "Entrega simultánea",
       "estado": "AUTORIZADA",
       "montoMaximoEstimado": 21000,
-      "codigoAutorizacion": "AUT-56699",
+      "codigoAutorizacion": "AUT-39686",
       "aprobadoPor": "Administrador",
-      "fechaAprobacion": "2026-09-21T17:23:35.122Z"
+      "fechaAprobacion": "2026-09-21T22:18:43.776Z"
     }
   ],
   "cargas": [
@@ -932,10 +947,64 @@
       "saldoActual": 79000,
       "umbralAlerta": 20000,
       "activo": true,
-      "updatedAt": "2026-09-21T17:23:35.122Z"
+      "updatedAt": "2026-09-21T22:18:43.776Z"
     }
   ],
   "movimientosSaldo": [
+    {
+      "id": "mov-1790029123776-vyno",
+      "saldoId": "saldo-test-estacion",
+      "estacionNombre": "Delta San Pedro Test",
+      "tipoCombustible": "Gasolina Regular",
+      "tipo": "descuento",
+      "monto": -21000,
+      "saldoAnterior": 100000,
+      "saldoNuevo": 79000,
+      "registroCombustibleId": "SOL-sol-race-1790029123776",
+      "vehiculoPlaca": "CR-TEST-99",
+      "numeroTicket": "AUT-sol-race-1790029123776",
+      "usuarioId": "admin-A",
+      "usuarioNombre": "Administrador",
+      "fecha": "2026-09-21T22:18:43.776Z",
+      "fechaDeposito": "2026-09-21",
+      "notas": "Reserva y autorización previa de saldo para solicitud #sol-race-1790029123776 (CR-TEST-99)"
+    },
+    {
+      "id": "mov-1790029123754-8wl4",
+      "saldoId": "saldo-test-estacion",
+      "estacionNombre": "Delta San Pedro Test",
+      "tipoCombustible": "Gasolina Regular",
+      "tipo": "descuento",
+      "monto": -20000,
+      "saldoAnterior": 100000,
+      "saldoNuevo": 80000,
+      "registroCombustibleId": "CRG-123754-545",
+      "vehiculoPlaca": "CR-T2-3753",
+      "numeroTicket": "TKT-886110",
+      "usuarioId": "usr-cond-test",
+      "usuarioNombre": "Conductor",
+      "fecha": "2026-09-21T22:18:43.754Z",
+      "fechaDeposito": "2026-09-21",
+      "notas": "Descuento atómico por registro de carga (CR-T2-3753)"
+    },
+    {
+      "id": "mov-1790029123749-v6ks",
+      "saldoId": "saldo-test-estacion",
+      "estacionNombre": "Delta San Pedro Test",
+      "tipoCombustible": "Gasolina Regular",
+      "tipo": "descuento",
+      "monto": -28000,
+      "saldoAnterior": 100000,
+      "saldoNuevo": 72000,
+      "registroCombustibleId": "SOL-sol-test-1-1790029123749",
+      "vehiculoPlaca": "CR-TEST-99",
+      "numeroTicket": "AUT-sol-test-1-1790029123749",
+      "usuarioId": "usr-admin-test",
+      "usuarioNombre": "Administrador",
+      "fecha": "2026-09-21T22:18:43.749Z",
+      "fechaDeposito": "2026-09-21",
+      "notas": "Reserva y autorización previa de saldo para solicitud #sol-test-1-1790029123749 (CR-TEST-99)"
+    },
     {
       "id": "mov-1790011415122-45l2",
       "saldoId": "saldo-test-estacion",
@@ -1642,6 +1711,61 @@
     }
   ],
   "audit_logs": [
+    {
+      "id": "aud-1790029123776-bdbh3",
+      "accion": "AUTORIZAR",
+      "entidad": "SOLICITUD",
+      "entidadId": "sol-race-1790029123776",
+      "usuarioId": "admin-A",
+      "datosAntes": {
+        "estado": "PENDIENTE",
+        "saldo": 100000
+      },
+      "datosDespues": {
+        "estado": "AUTORIZADA",
+        "saldo": 79000,
+        "monto": 21000
+      },
+      "timestamp": "2026-09-21T22:18:43.776Z",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "aud-1790029123769-p8j0z",
+      "accion": "REGISTRAR_CARGA",
+      "entidad": "CARGA",
+      "entidadId": "CRG-123754-545",
+      "usuarioId": "usr-cond-test",
+      "datosAntes": {
+        "odometroAnterior": 30000,
+        "saldo": 100000
+      },
+      "datosDespues": {
+        "odometroActual": 30400,
+        "saldo": 80000,
+        "monto": 20000,
+        "galones": 7.5
+      },
+      "timestamp": "2026-09-21T22:18:43.769Z",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "aud-1790029123750-cd94q",
+      "accion": "AUTORIZAR",
+      "entidad": "SOLICITUD",
+      "entidadId": "sol-test-1-1790029123749",
+      "usuarioId": "usr-admin-test",
+      "datosAntes": {
+        "estado": "PENDIENTE",
+        "saldo": 100000
+      },
+      "datosDespues": {
+        "estado": "AUTORIZADA",
+        "saldo": 72000,
+        "monto": 28000
+      },
+      "timestamp": "2026-09-21T22:18:43.750Z",
+      "ip": "127.0.0.1"
+    },
     {
       "id": "aud-1790011415122-bir8m",
       "accion": "AUTORIZAR",

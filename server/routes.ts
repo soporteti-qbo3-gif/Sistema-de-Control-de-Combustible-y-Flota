@@ -20,6 +20,7 @@ import {
   requiereAdmin,
   requiereAdminPrincipal,
   verificarPropiedadRecurso, // 🔒 SEGURIDAD: Control de acceso para mitigación de IDOR
+  toPublicUser,
   AuthenticatedRequest,
 } from './auth';
 import { extraerDatosComprobanteYOdometro } from './ia_extractor';
@@ -109,8 +110,14 @@ export function validarMimeTypeBase64(base64Str?: string): { valido: boolean; er
 apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email) {
+  if (!email || typeof email !== 'string') {
     res.status(400).json({ error: 'El correo electrónico es requerido.' });
+    return;
+  }
+
+  // 🔒 SEGURIDAD (1.1): Validación estricta y obligatoria de contraseña (no se permite bypass de contraseña)
+  if (!password || typeof password !== 'string' || !password.trim()) {
+    res.status(400).json({ error: 'La contraseña es requerida para iniciar sesión.' });
     return;
   }
 
@@ -130,12 +137,10 @@ apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   }
 
   // 🔒 SEGURIDAD: Validación de credenciales mediante bcrypt.compare() para prevenir ataques de temporización
-  if (password) {
-    const esPasswordValida = await db.validarPassword(usuario, password);
-    if (!esPasswordValida) {
-      res.status(401).json({ error: 'Credenciales inválidas. Contraseña incorrecta.' });
-      return;
-    }
+  const esPasswordValida = await db.validarPassword(usuario, password);
+  if (!esPasswordValida) {
+    res.status(401).json({ error: 'Credenciales inválidas. Contraseña incorrecta.' });
+    return;
   }
 
   const token = generarToken(usuario);
@@ -148,19 +153,8 @@ apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   res.json({
     token,
     usuario: {
-      id: usuario.id,
-      email: usuario.email,
-      nombre: usuario.nombre,
-      rol: usuario.rol,
-      esAdminPrincipal: !!usuario.esAdminPrincipal,
-      debeCambiarPassword: !!usuario.debeCambiarPassword,
-      tempPassword: usuario.tempPassword,
-      telefonoContacto: usuario.telefonoContacto,
-      telefonoWhatsapp: usuario.telefonoContacto,
-      licencia: usuario.licencia,
-      vehiculoAsignadoId: usuario.vehiculoAsignadoId,
+      ...toPublicUser(usuario),
       vehiculoAsignado,
-      activo: usuario.activo,
     },
   });
 });
@@ -177,19 +171,22 @@ apiRouter.get('/auth/me', middlewareAutenticacion, (req: AuthenticatedRequest, r
     : undefined;
 
   res.json({
-    id: usuario.id,
-    email: usuario.email,
-    nombre: usuario.nombre,
-    rol: usuario.rol,
-    esAdminPrincipal: !!usuario.esAdminPrincipal,
-    debeCambiarPassword: !!usuario.debeCambiarPassword,
-    tempPassword: usuario.tempPassword,
-    telefonoContacto: usuario.telefonoContacto,
-    telefonoWhatsapp: usuario.telefonoContacto,
-    licencia: usuario.licencia,
-    vehiculoAsignadoId: usuario.vehiculoAsignadoId,
+    ...toPublicUser(usuario),
     vehiculoAsignado,
-    activo: usuario.activo,
+  });
+});
+
+// 🔒 SEGURIDAD: Renovación segura de token JWT con usuario autenticado activo
+apiRouter.post('/auth/refresh', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+  const usuario = db.usuarios.find((u) => u.id === req.user?.userId);
+  if (!usuario || !usuario.activo) {
+    res.status(401).json({ error: 'Usuario no encontrado o inactivo.' });
+    return;
+  }
+  const token = generarToken(usuario);
+  res.json({
+    token,
+    usuario: toPublicUser(usuario),
   });
 });
 
@@ -211,7 +208,10 @@ apiRouter.post('/auth/cambiar-password', middlewareAutenticacion, async (req: Au
       forzarSinAnterior: req.user?.debeCambiarPassword,
     });
 
-    res.json(resultado);
+    res.json({
+      ...resultado,
+      usuario: toPublicUser(resultado.usuario),
+    });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al cambiar la contraseña.' });
   }
@@ -236,7 +236,7 @@ apiRouter.get('/usuarios', middlewareAutenticacion, requiereAdmin, (req: Authent
   }
 
   const conDetalles = lista.map((u) => ({
-    ...u,
+    ...toPublicUser(u),
     vehiculoAsignado: u.vehiculoAsignadoId ? db.vehiculos.find((v) => v.id === u.vehiculoAsignadoId) : undefined,
   }));
 
@@ -258,7 +258,7 @@ apiRouter.post('/usuarios/admin', middlewareAutenticacion, requiereAdminPrincipa
 
     res.status(201).json({
       message: 'Administrador creado exitosamente. Se ha generado su contraseña temporal y deberá cambiarla al iniciar sesión.',
-      usuario: nuevoAdmin,
+      usuario: toPublicUser(nuevoAdmin),
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al crear administrador.' });
@@ -282,7 +282,7 @@ apiRouter.post('/usuarios/conductor', middlewareAutenticacion, requiereAdmin, as
 
     res.status(201).json({
       message: 'Conductor creado exitosamente. Se ha establecido la contraseña temporal.',
-      usuario: nuevoConductor,
+      usuario: toPublicUser(nuevoConductor),
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al crear conductor.' });
@@ -317,7 +317,7 @@ apiRouter.put('/usuarios/:id', middlewareAutenticacion, requiereAdmin, (req: Aut
 
     res.json({
       message: 'Usuario actualizado exitosamente.',
-      usuario: usuarioActualizado,
+      usuario: toPublicUser(usuarioActualizado),
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al actualizar usuario.' });
@@ -354,7 +354,7 @@ apiRouter.put('/usuarios/:id/suspender', middlewareAutenticacion, requiereAdmin,
   usuario.activo = false;
   res.json({
     message: `${usuario.rol === 'ADMIN' ? 'Administrador' : 'Conductor'} suspendido exitosamente. No podrá iniciar sesión ni registrar operaciones.`,
-    usuario,
+    usuario: toPublicUser(usuario),
   });
 });
 
@@ -378,7 +378,7 @@ apiRouter.put('/usuarios/:id/activar', middlewareAutenticacion, requiereAdmin, (
   usuario.activo = true;
   res.json({
     message: 'Usuario reactivado exitosamente.',
-    usuario,
+    usuario: toPublicUser(usuario),
   });
 });
 
@@ -649,14 +649,14 @@ apiRouter.get('/conductores', middlewareAutenticacion, (req: AuthenticatedReques
   const conductores = db.usuarios
     .filter((u) => u.rol === 'CONDUCTOR')
     .map((c) => ({
-      ...c,
+      ...toPublicUser(c),
       vehiculoAsignado: db.vehiculos.find((v) => v.id === c.vehiculoAsignadoId),
     }));
   res.json(conductores);
 });
 
-apiRouter.post('/conductores', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
-  const { nombre, email, telefonoContacto, telefonoWhatsapp, licencia, vehiculoAsignadoId } = req.body;
+apiRouter.post('/conductores', middlewareAutenticacion, requiereAdmin, async (req: AuthenticatedRequest, res: Response) => {
+  const { nombre, email, telefonoContacto, telefonoWhatsapp, licencia, vehiculoAsignadoId, tempPassword, activo } = req.body;
   const tel = telefonoContacto || telefonoWhatsapp;
 
   if (!nombre || !email || !tel) {
@@ -664,34 +664,21 @@ apiRouter.post('/conductores', middlewareAutenticacion, requiereAdmin, (req: Aut
     return;
   }
 
-  if (db.usuarios.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
-    res.status(400).json({ error: 'Ya existe un usuario con ese correo electrónico.' });
-    return;
+  try {
+    const nuevoConductor = await db.crearConductor({
+      nombre,
+      email,
+      telefonoContacto: tel,
+      licencia,
+      vehiculoAsignadoId,
+      tempPassword,
+      activo: activo !== undefined ? activo : true,
+    });
+
+    res.status(201).json(toPublicUser(nuevoConductor));
+  } catch (error: any) {
+    res.status(400).json({ error: error.message || 'Error al crear conductor.' });
   }
-
-  const nuevoConductor: Usuario = {
-    id: `usr-cond-${Date.now()}`,
-    nombre: nombre.trim(),
-    email: email.toLowerCase().trim(),
-    rol: 'CONDUCTOR',
-    telefonoContacto: tel.trim(),
-    telefonoWhatsapp: tel.trim(),
-    licencia: licencia?.trim(),
-    vehiculoAsignadoId,
-    activo: true,
-  };
-
-  db.usuarios.push(nuevoConductor);
-
-  if (vehiculoAsignadoId) {
-    const veh = db.vehiculos.find((v) => v.id === vehiculoAsignadoId);
-    if (veh) {
-      veh.conductorId = nuevoConductor.id;
-      veh.conductorNombre = nuevoConductor.nombre;
-    }
-  }
-
-  res.status(201).json(nuevoConductor);
 });
 
 apiRouter.put('/conductores/:id', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
@@ -735,7 +722,7 @@ apiRouter.put('/conductores/:id', middlewareAutenticacion, requiereAdmin, (req: 
     }
   }
 
-  res.json(db.usuarios[index]);
+  res.json(toPublicUser(db.usuarios[index]));
 });
 
 // ==========================================
@@ -1237,6 +1224,19 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
     return;
   }
 
+  // 🔒 SEGURIDAD (1.7): Si los datos de IA provienen de simulación o fallback, NO persistir automáticamente:
+  // exigir confirmación explícita del conductor (campo confirmarDatosSimulados) y marcar la carga con requiereRevision = true
+  const esDatoSimulado = datosIA?.esSimulado === true;
+  if (esDatoSimulado && req.body.confirmarDatosSimulados !== true) {
+    res.status(400).json({
+      error: 'DATOS_SIMULADOS_REQUIEREN_CONFIRMACION',
+      message: 'Los datos del comprobante u odómetro provienen de un proceso simulado o fallback (OCR sin certeza total). Se requiere confirmación explícita (confirmarDatosSimulados: true) para proceder con el registro.',
+      esSimulado: true,
+      requiereConfirmacion: true,
+    });
+    return;
+  }
+
   const numLitros = Number(litros);
   const numTotal = Number(totalPagado);
   const numOdoActual = Number(odometroActual);
@@ -1350,6 +1350,8 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
       claveNumerica: claveFinal,
       tipoCombustible: tipoCombustible || vehiculo.tipoCombustible,
       notaConductor: notaConductor ? String(notaConductor).trim() : undefined,
+      esSimulado: esDatoSimulado,
+      requiereRevision: esDatoSimulado || hayAnomalia,
       datosIA: datosIA || {
         estacion,
         numeroTicket: folioFinal,
@@ -1357,12 +1359,19 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
         litros: numLitros,
         totalPagado: numTotal,
         odometroLeido: numOdoActual,
-        confianzaScore: 95,
-        advertencias: [],
+        confianzaScore: 0,
+        esSimulado: true,
+        advertencias: ['Comprobante ingresado manualmente sin verificación OCR.'],
       },
     });
 
     const nuevaCarga = resultadoCarga.carga;
+
+    if (esDatoSimulado) {
+      nuevaCarga.requiereRevision = true;
+      nuevaCarga.esSimulado = true;
+      nuevaCarga.estadoValidacion = 'REQUIERE_REVISION';
+    }
 
     // Si se detectó anomalía o sospecha de fraude, despachar notificaciones y correo
     if (hayAnomalia) {
@@ -2746,7 +2755,8 @@ apiRouter.post('/notificaciones/test-email', middlewareAutenticacion, requiereAd
 // 13. PRUEBAS UNITARIAS EN TIEMPO REAL
 // ==========================================
 
-apiRouter.get('/tests/run', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+// 🔒 SEGURIDAD (1.6): Solo el Administrador Principal puede ejecutar el suite de pruebas en el servidor
+apiRouter.get('/tests/run', middlewareAutenticacion, requiereAdminPrincipal, (req: AuthenticatedRequest, res: Response) => {
   const resultadoCalculos = ejecutarPruebasCalculos();
 
   // Test suite de saldos prepago
@@ -2984,7 +2994,17 @@ apiRouter.get('/tests/run', middlewareAutenticacion, (req: AuthenticatedRequest,
 // 13. RESTAURAR DATOS DEMO
 // ==========================================
 
-apiRouter.post('/reset-demo', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+// 🔒 SEGURIDAD (1.6): Solo el Administrador Principal con confirmación explícita puede reiniciar la base de datos
+apiRouter.post('/reset-demo', middlewareAutenticacion, requiereAdminPrincipal, (req: AuthenticatedRequest, res: Response) => {
+  const { confirmacion } = req.body || {};
+  if (confirmacion !== 'REINICIAR_TODO_CONFIRMADO') {
+    res.status(400).json({
+      error: 'CONFIRMACION_REQUERIDA',
+      message: 'Para reiniciar la base de datos demo debe enviar { "confirmacion": "REINICIAR_TODO_CONFIRMADO" } en el cuerpo de la petición.',
+    });
+    return;
+  }
+
   db.inicializarDatos();
   res.json({ message: 'Base de datos restaurada al estado inicial de demostración.' });
 });

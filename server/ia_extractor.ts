@@ -162,8 +162,9 @@ export async function extraerDatosComprobanteYOdometro(
         precioPorLitro: localSvgMatch.precioPorLitro || 720.0,
         totalPagado: localSvgMatch.totalPagado,
         odometroLeido: localSvgMatch.odometroLeido || (odometroAnteriorReferencia ? odometroAnteriorReferencia + 480 : 105950),
-        confianzaScore: 98,
-        advertencias: [],
+        confianzaScore: 0,
+        esSimulado: true,
+        advertencias: ['Datos extraídos mediante emulación SVG sintética local. Requiere verificación humana.'],
         lucesAdvertenciaTablero: [],
       },
       odometroAnteriorReferencia
@@ -413,8 +414,12 @@ function fallbackExtraction(
     precioPorLitro,
     totalPagado,
     odometroLeido: odoBase,
-    confianzaScore: 92,
-    advertencias,
+    confianzaScore: 0,
+    esSimulado: true,
+    advertencias: [
+      ...advertencias,
+      'Datos generados por simulación o fallback de contingencia (sin OCR real). Requiere confirmación explícita.',
+    ],
     lucesAdvertenciaTablero: [],
   };
 }

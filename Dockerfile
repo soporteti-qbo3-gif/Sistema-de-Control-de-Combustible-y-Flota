@@ -49,6 +49,7 @@ RUN npm ci --omit=dev && npm cache clean --force
 
 # Copiar artefactos generados en la etapa de build
 COPY --from=builder --chown=pagsurr:nodejs /app/dist ./dist
+COPY --from=builder --chown=pagsurr:nodejs /app/dist-server ./dist-server
 COPY --from=builder --chown=pagsurr:nodejs /app/server ./server
 
 # Asignar propiedad de archivos al usuario sin privilegios
@@ -62,4 +63,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:3000/api/health || exit 1
 
 # Iniciar servidor Express de producción
-CMD ["node", "dist/server.cjs"]
+CMD ["node", "dist-server/server.cjs"]

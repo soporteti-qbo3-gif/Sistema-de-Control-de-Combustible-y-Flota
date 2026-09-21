@@ -44,13 +44,20 @@ export const DEMO_USERS: DemoUserOption[] = [
   },
 ];
 
+export const DEMO_PASSWORDS: Record<string, string> = {
+  'admin@flota.com': 'FlotaAdmin2026!',
+  'carlos.mendoza@flota.com': 'Conductor2026!',
+  'maria.lopez@flota.com': 'Conductor2026!',
+  'juan.perez@flota.com': 'Conductor2026!',
+};
+
 interface AuthContextType {
   usuario: Usuario | null;
   token: string | null;
   cargando: boolean;
-  login: (email: string) => Promise<void>;
+  login: (email: string, password?: string) => Promise<void>;
   logout: () => void;
-  cambiarUsuarioDemo: (email: string) => Promise<void>;
+  cambiarUsuarioDemo: (email: string, password?: string) => Promise<void>;
   actualizarUsuarioActual: () => Promise<void>;
 }
 
@@ -64,7 +71,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
   const [cargando, setCargando] = useState<boolean>(true);
 
-  // Escuchar renovaciones de token automáticas desde el cliente API
+  // Escuchar renovaciones y cierres de sesión desde el cliente API
   useEffect(() => {
     const handleAuthRenewed = (e: Event) => {
       const customEvt = e as CustomEvent<{ token: string; usuario: Usuario }>;
@@ -75,11 +82,56 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setUsuario(customEvt.detail.usuario);
       }
     };
+
+    const handleAuthLogout = () => {
+      logout();
+    };
+
     window.addEventListener('flota_auth_renewed', handleAuthRenewed);
+    window.addEventListener('flota_auth_logout', handleAuthLogout);
     return () => {
       window.removeEventListener('flota_auth_renewed', handleAuthRenewed);
+      window.removeEventListener('flota_auth_logout', handleAuthLogout);
     };
   }, []);
+
+  const logout = () => {
+    localStorage.removeItem('flota_token');
+    localStorage.removeItem('flota_user_email');
+    setToken(null);
+    setUsuario(null);
+  };
+
+  const login = async (email: string, password?: string) => {
+    setCargando(true);
+    try {
+      const pass = password || DEMO_PASSWORDS[email.toLowerCase()] || 'FlotaAdmin2026!';
+      const resp = await api.login(email, pass);
+      localStorage.setItem('flota_token', resp.token);
+      localStorage.setItem('flota_user_email', resp.usuario.email);
+      setToken(resp.token);
+      setUsuario(resp.usuario);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  const cambiarUsuarioDemo = async (email: string, password?: string) => {
+    setCargando(true);
+    try {
+      const pass = password || DEMO_PASSWORDS[email.toLowerCase()] || 'FlotaAdmin2026!';
+      const resp = await api.login(email, pass);
+      localStorage.setItem('flota_token', resp.token);
+      localStorage.setItem('flota_user_email', resp.usuario.email);
+      setToken(resp.token);
+      setUsuario(resp.usuario);
+    } catch (e) {
+      console.error('Error al cambiar usuario demo:', e);
+      logout();
+    } finally {
+      setCargando(false);
+    }
+  };
 
   const cargarUsuario = async () => {
     try {
@@ -92,13 +144,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           localStorage.setItem('flota_user_email', u.email);
         }
       } else {
-        // Por defecto iniciar con Admin para gestión completa de flota
+        // En entorno inicial o demostración, conectar con credenciales demo predeterminadas
         await cambiarUsuarioDemo('admin@flota.com');
       }
     } catch (err) {
-      console.warn('Sesión previa no válida, restableciendo a usuario demo:', err);
-      localStorage.removeItem('flota_token');
-      await cambiarUsuarioDemo('admin@flota.com');
+      console.warn('Sesión previa no válida o expirada:', err);
+      logout();
     } finally {
       setCargando(false);
     }
@@ -107,41 +158,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     cargarUsuario();
   }, []);
-
-  const login = async (email: string) => {
-    setCargando(true);
-    try {
-      const resp = await api.login(email);
-      localStorage.setItem('flota_token', resp.token);
-      localStorage.setItem('flota_user_email', resp.usuario.email);
-      setToken(resp.token);
-      setUsuario(resp.usuario);
-    } finally {
-      setCargando(false);
-    }
-  };
-
-  const logout = () => {
-    localStorage.removeItem('flota_token');
-    localStorage.removeItem('flota_user_email');
-    setToken(null);
-    setUsuario(null);
-  };
-
-  const cambiarUsuarioDemo = async (email: string) => {
-    setCargando(true);
-    try {
-      const resp = await api.login(email);
-      localStorage.setItem('flota_token', resp.token);
-      localStorage.setItem('flota_user_email', resp.usuario.email);
-      setToken(resp.token);
-      setUsuario(resp.usuario);
-    } catch (e) {
-      console.error('Error al cambiar usuario demo:', e);
-    } finally {
-      setCargando(false);
-    }
-  };
 
   const actualizarUsuarioActual = async () => {
     try {

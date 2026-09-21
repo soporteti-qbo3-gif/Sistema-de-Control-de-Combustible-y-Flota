@@ -10,12 +10,16 @@ import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
+// 🔒 SEGURIDAD (1.8): Helmet para cabeceras HTTP seguras y CORS para control estricto de orígenes
+import helmet from 'helmet';
+import cors from 'cors';
+import { config } from './server/config';
 import { apiRouter } from './server/routes';
 import { initSentry, isSentryConfigured, setupSentryErrorHandler, captureException } from './server/sentry';
 import { isResendConfigured } from './server/resend';
 import { db } from './server/db';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'flota_control_jwt_super_secret_2026';
+const JWT_SECRET = config.JWT_SECRET;
 
 /**
  * Middleware simple de verificación de token JWT en encabezado Authorization
@@ -52,10 +56,46 @@ function containsForbiddenSSRF(text: string): boolean {
 
 async function startServer() {
   const app = express();
-  const PORT = Number(process.env.PORT) || 3000;
+  const PORT = config.PORT || 3000;
 
   // 🛡️ Configuración de proxy para entornos contenerizados (Cloud Run / Nginx)
   app.set('trust proxy', 1);
+
+  // 🔒 SEGURIDAD (1.8): Configuración estricta de Helmet con Content Security Policy (CSP)
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
+          connectSrc: ["'self'", process.env.VITE_SITE_URL || 'http://localhost:3000'],
+          fontSrc: ["'self'", 'data:'],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'"],
+        },
+      },
+      crossOriginEmbedderPolicy: false,
+    })
+  );
+
+  // 🔒 SEGURIDAD (1.8): Configuración restrictiva de CORS permitiendo únicamente el origen autorizado
+  const allowedOrigin = process.env.VITE_SITE_URL || 'http://localhost:3000';
+  app.use(
+    cors({
+      origin: (origin, callback) => {
+        // Permitir peticiones sin origen (como curl local, SSR, o aplicaciones cliente del mismo host) o del origen autorizado
+        if (!origin || origin === allowedOrigin) {
+          callback(null, true);
+        } else {
+          callback(new Error('Bloqueado por política restrictiva CORS de PagSurr/QBO3'));
+        }
+      },
+      methods: ['GET', 'POST', 'PUT', 'DELETE'],
+      credentials: true,
+    })
+  );
 
   // 🛡️ Inicialización de observabilidad y rastreo de errores con Sentry
   initSentry(app);
@@ -63,6 +103,20 @@ async function startServer() {
   // Middlewares para parsing de JSON con límite reducido de 50mb a 10mb
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+  // 🔒 SEGURIDAD (1.8): Rate limiting global general para endpoints de la API (1000 req / 15 min)
+  const globalApiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
+    validate: { xForwardedForHeader: false },
+    message: {
+      error: 'TOO_MANY_REQUESTS',
+      message: 'Demasiadas solicitudes al servidor de API. Por favor intente más tarde.',
+    },
+  });
+  app.use('/api', globalApiLimiter);
 
   // Limitador de peticiones para el proxy de Gemini (10 req/min)
   const geminiLimiter = rateLimit({

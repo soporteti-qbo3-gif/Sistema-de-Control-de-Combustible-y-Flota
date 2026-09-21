@@ -2258,8 +2258,12 @@ class BaseDeDatosFlota {
           litros,
           totalPagado: monto,
           odometroLeido: odometroFinal,
-          confianzaScore: 98,
+          confianzaScore: 0,
+          esSimulado: true,
+          advertencias: ['Datos autogenerados sin extracción OCR confirmada.'],
         },
+        esSimulado: extras?.datosIA?.esSimulado ?? extras?.esSimulado ?? false,
+        requiereRevision: extras?.requiereRevision ?? (extras?.datosIA?.esSimulado === true),
         anomaliaDetectada: false,
         esDuplicado: false,
       };
@@ -2419,9 +2423,10 @@ class BaseDeDatosFlota {
       throw new Error(`El correo ${emailNorm} ya se encuentra registrado en el sistema.`);
     }
 
-    // 🔒 SEGURIDAD: Hashing criptográfico con bcrypt (10 salt rounds) al crear administrador
+    // 🔒 SEGURIDAD (1.5): Hashing criptográfico con bcrypt (10 salt rounds) de contraseña temporal con expiración de 72h
     const passwordTextoPlano = params.tempPassword || 'FlotaAdmin2026!';
-    const passwordHash = await bcrypt.hash(passwordTextoPlano, 10);
+    const tempPasswordHash = await bcrypt.hash(passwordTextoPlano, 10);
+    const tempPasswordExpira = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
 
     const nuevoAdmin: Usuario = {
       id: `usr-admin-${Date.now()}`,
@@ -2430,9 +2435,8 @@ class BaseDeDatosFlota {
       rol: 'ADMIN',
       esAdminPrincipal: false,
       debeCambiarPassword: true,
-      // 🔒 SEGURIDAD: Asignación exclusiva del hash bcrypt, eliminando texto plano en passwordHash
-      passwordHash,
-      tempPassword: passwordTextoPlano,
+      tempPasswordHash,
+      tempPasswordExpira,
       telefonoContacto: params.telefonoContacto || '+506 2000-0000',
       telefonoWhatsapp: params.telefonoWhatsapp || params.telefonoContacto || '+506 2000-0000',
       activo: params.activo !== undefined ? params.activo : true,
@@ -2529,9 +2533,10 @@ class BaseDeDatosFlota {
       throw new Error(`El correo ${emailNorm} ya está en uso.`);
     }
 
-    // 🔒 SEGURIDAD: Hashing con bcrypt (10 salt rounds) al crear conductor
+    // 🔒 SEGURIDAD (1.5): Hashing criptográfico con bcrypt (10 salt rounds) de contraseña temporal con expiración de 72h
     const passwordTextoPlano = params.tempPassword || 'Conductor2026!';
-    const passwordHash = await bcrypt.hash(passwordTextoPlano, 10);
+    const tempPasswordHash = await bcrypt.hash(passwordTextoPlano, 10);
+    const tempPasswordExpira = new Date(Date.now() + 72 * 3600 * 1000).toISOString();
 
     const nuevoConductor: Usuario = {
       id: `usr-cond-${Date.now()}`,
@@ -2540,9 +2545,8 @@ class BaseDeDatosFlota {
       rol: 'CONDUCTOR',
       esAdminPrincipal: false,
       debeCambiarPassword: true,
-      // 🔒 SEGURIDAD: Asignación exclusiva del hash bcrypt, eliminando texto plano en passwordHash
-      passwordHash,
-      tempPassword: passwordTextoPlano,
+      tempPasswordHash,
+      tempPasswordExpira,
       telefonoContacto: params.telefonoContacto || '+506 8000-0000',
       telefonoWhatsapp: params.telefonoWhatsapp || params.telefonoContacto || '+506 8000-0000',
       licencia: params.licencia,
@@ -2849,6 +2853,11 @@ class BaseDeDatosFlota {
       if (usuario.passwordHash) {
         passwordValida = await bcrypt.compare(params.passwordAnterior, usuario.passwordHash);
       }
+      if (!passwordValida && usuario.tempPasswordHash) {
+        if (!usuario.tempPasswordExpira || new Date(usuario.tempPasswordExpira).getTime() >= Date.now()) {
+          passwordValida = await bcrypt.compare(params.passwordAnterior, usuario.tempPasswordHash);
+        }
+      }
       if (!passwordValida && usuario.tempPassword) {
         passwordValida = params.passwordAnterior === usuario.tempPassword;
       }
@@ -2857,9 +2866,11 @@ class BaseDeDatosFlota {
       }
     }
 
-    // 🔒 SEGURIDAD: Hashing con salt 10 rounds para nueva contraseña. Eliminación total de asignación directa de texto plano.
+    // 🔒 SEGURIDAD: Hashing con salt 10 rounds para nueva contraseña. Eliminación e invalidación de claves temporales.
     usuario.passwordHash = await bcrypt.hash(params.passwordNuevo, 10);
     usuario.tempPassword = undefined;
+    usuario.tempPasswordHash = undefined;
+    usuario.tempPasswordExpira = undefined;
     usuario.debeCambiarPassword = false;
 
     return {
@@ -2871,12 +2882,20 @@ class BaseDeDatosFlota {
 
   // 🔒 SEGURIDAD: Método centralizado para verificar contraseñas con bcrypt.compare() en login
   public async validarPassword(usuario: Usuario, passwordIngresado: string): Promise<boolean> {
-    if (!usuario) return false;
+    if (!usuario || !passwordIngresado) return false;
     if (usuario.passwordHash) {
       const coincide = await bcrypt.compare(passwordIngresado, usuario.passwordHash);
       if (coincide) return true;
     }
-    // Fallback para contraseña temporal si está asignada y pendiente de cambio
+    // 🔒 SEGURIDAD (1.5): Verificación de contraseña temporal con bcrypt y expiración de 72 horas
+    if (usuario.tempPasswordHash) {
+      if (usuario.tempPasswordExpira && new Date(usuario.tempPasswordExpira).getTime() < Date.now()) {
+        return false; // Contraseña temporal expirada
+      }
+      const coincideTemp = await bcrypt.compare(passwordIngresado, usuario.tempPasswordHash);
+      if (coincideTemp) return true;
+    }
+    // Compatibilidad retroactiva durante migración
     if (usuario.tempPassword && passwordIngresado === usuario.tempPassword) {
       return true;
     }
