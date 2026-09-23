@@ -2,70 +2,68 @@
 
 @layer base {
   :root {
-    /* Apple HIG Design Tokens */
-    --apple-system-bg: #F2F2F7;
-    --apple-secondary-bg: #FFFFFF;
-    --apple-tertiary-bg: #E5E5EA;
-    --apple-grouped-bg: #F2F2F7;
-    --apple-secondary-grouped-bg: #FFFFFF;
+    /* Enterprise Design System Tokens */
+    --color-canvas: #F8FAFC;
+    --color-surface: #FFFFFF;
+    --color-surface-subtle: #F1F5F9;
+    --color-border: #E2E8F0;
+    --color-border-subtle: #F1F5F9;
 
-    /* Apple System Colors */
-    --apple-blue: #007AFF;
-    --apple-green: #34C759;
-    --apple-orange: #FF9500;
-    --apple-red: #FF3B30;
-    --apple-purple: #AF52DE;
-    --apple-teal: #30B0C7;
-    --apple-gray: #8E8E93;
-    --apple-gray2: #AEAEB2;
-    --apple-gray3: #C7C7CC;
-    --apple-gray4: #D1D1D6;
-    --apple-gray5: #E5E5EA;
-    --apple-gray6: #F2F2F7;
+    /* Slate Neutral Scale */
+    --slate-900: #0F172A;
+    --slate-800: #1E293B;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748B;
+    --slate-400: #94A3B8;
+    --slate-300: #CBD5E1;
+    --slate-200: #E2E8F0;
+    --slate-100: #F1F5F9;
+    --slate-50: #F8FAFC;
 
-    /* Apple Labels & Separators */
-    --apple-label-primary: #000000;
-    --apple-label-secondary: rgba(60, 60, 67, 0.60);
-    --apple-label-tertiary: rgba(60, 60, 67, 0.30);
-    --apple-label-quaternary: rgba(60, 60, 67, 0.18);
-    --apple-separator: rgba(60, 60, 67, 0.12);
-    --apple-opaque-separator: #C6C6C8;
+    /* Semantic Data State (Sober & Clear, strictly for states) */
+    --color-primary: #0F172A;
+    --color-accent: #2563EB;
+    --color-success: #059669;
+    --color-warning: #D97706;
+    --color-danger: #DC2626;
 
-    /* Apple Materials & Elevation */
-    --apple-corner-radius-sm: 10px;
-    --apple-corner-radius: 16px;
-    --apple-corner-radius-lg: 22px;
-    --apple-corner-radius-pill: 9999px;
-    --apple-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-    --apple-shadow-card: 0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
-    --apple-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.08), 0 2px 6px rgba(0, 0, 0, 0.04);
+    /* Industrial & Geometric Radii */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
   }
 
   * {
-    border-color: rgba(60, 60, 67, 0.12);
+    border-color: #E2E8F0;
   }
 
   body {
-    background-color: var(--apple-system-bg);
-    color: #1c1c1e;
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Plus Jakarta Sans', system-ui, sans-serif;
+    background-color: var(--color-canvas);
+    color: var(--slate-900);
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    letter-spacing: -0.015em;
+    letter-spacing: -0.011em;
   }
 
-  code, kbd, samp, pre, .font-mono {
-    font-family: 'SF Mono', 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  /* All numbers in data, tables, dashboards and metrics enforce tabular figures */
+  .tabular-nums,
+  [data-tabular="true"],
+  .font-mono {
+    font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    font-variant-numeric: tabular-nums;
     letter-spacing: -0.02em;
   }
 
-  /* Focus states: Apple HIG subtle focus ring */
+  /* Enterprise Subtle Focus Ring */
   :focus-visible {
-    outline: 2px solid #007AFF;
+    outline: 2px solid #0F172A;
     outline-offset: 2px;
   }
 
-  /* Apple iOS/macOS styled minimalist scrollbar */
+  /* Clean Minimalist Scrollbars */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -76,76 +74,48 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.16);
-    border-radius: 9999px;
+    background: #CBD5E1;
+    border-radius: 4px;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.28);
+    background: #94A3B8;
   }
 }
 
-/* Apple iOS/macOS Touch Feedback & Micro-interactions */
+/* Professional Tactile Feedback (Subtle & Crisp, no rubber bounce) */
+.press-feedback {
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+}
+.press-feedback:active {
+  opacity: 0.92;
+}
+
+/* Legacy alias for backwards compatibility during refactor */
 .apple-press-feedback {
-  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), opacity 0.12s ease;
+  transition: opacity 0.12s ease, background-color 0.12s ease;
 }
 .apple-press-feedback:active {
-  transform: scale(0.96);
-  opacity: 0.88;
+  opacity: 0.92;
 }
 
-/* Translucent Frosted Glass Materials */
-.apple-ultra-thin-material {
-  background-color: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
-}
-
-.apple-thick-material {
-  background-color: rgba(255, 255, 255, 0.90);
-  backdrop-filter: blur(30px) saturate(190%);
-  -webkit-backdrop-filter: blur(30px) saturate(190%);
-}
-
-.apple-grouped-card {
+/* Clean Card Utility */
+.enterprise-card {
   background-color: #FFFFFF;
-  border-radius: var(--apple-corner-radius);
-  border: 1px solid rgba(60, 60, 67, 0.08);
-  box-shadow: var(--apple-shadow-card);
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
 }
 
-/* Liquid Utilities & Jakub Antalík Style Animations */
-@keyframes liquidPulse {
-  0%, 100% {
-    transform: scale(1);
-    opacity: 0.8;
-  }
-  50% {
-    transform: scale(1.04);
-    opacity: 1;
-  }
+.enterprise-card-interactive {
+  background-color: #FFFFFF;
+  border-radius: 8px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
-@keyframes liquidShimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
+.enterprise-card-interactive:hover {
+  border-color: #CBD5E1;
+  box-shadow: 0 2px 4px -1px rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
 }
-
-.liquid-shimmer {
-  background-size: 200% 200%;
-  animation: liquidShimmer 6s ease infinite;
-}
-
-.liquid-glow {
-  filter: drop-shadow(0 0 12px rgba(6, 182, 212, 0.4));
-}
-
-
-

@@ -13,13 +13,11 @@ import jwt from 'jsonwebtoken';
 // 🔒 SEGURIDAD (1.8): Helmet para cabeceras HTTP seguras y CORS para control estricto de orígenes
 import helmet from 'helmet';
 import cors from 'cors';
-import { config } from './server/config';
+import { config, JWT_SECRET } from './server/config';
 import { apiRouter } from './server/routes';
 import { initSentry, isSentryConfigured, setupSentryErrorHandler, captureException } from './server/sentry';
 import { isResendConfigured } from './server/resend';
 import { db } from './server/db';
-
-const JWT_SECRET = config.JWT_SECRET;
 
 /**
  * Middleware simple de verificación de token JWT en encabezado Authorization
@@ -56,7 +54,7 @@ function containsForbiddenSSRF(text: string): boolean {
 
 async function startServer() {
   const app = express();
-  const PORT = config.PORT || 3000;
+  const PORT = 3000;
 
   // 🛡️ Configuración de proxy para entornos contenerizados (Cloud Run / Nginx)
   app.set('trust proxy', 1);

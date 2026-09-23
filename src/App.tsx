@@ -102,10 +102,10 @@ const MainLayout: React.FC = () => {
 
   if (cargando) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center text-stone-700">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-700">
         <div className="text-center space-y-3">
-          <div className="w-10 h-10 border-2 border-stone-900 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-semibold text-stone-500">Iniciando FlotaControl...</p>
+          <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-xs font-medium text-slate-500">Iniciando FlotaControl...</p>
         </div>
       </div>
     );
@@ -167,8 +167,8 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F2F2F7] text-[#1C1C1E] flex flex-col font-sans antialiased selection:bg-[#007AFF] selection:text-white relative">
-      {/* Header Fijo Compacto estilo Apple Translucent Bar */}
+    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased selection:bg-slate-900 selection:text-white relative">
+      {/* Header Fijo con Top Bar Contract */}
       <Navbar
         vistaActiva={vistaActiva}
         setVistaActiva={setVistaActiva}
@@ -202,10 +202,10 @@ const MainLayout: React.FC = () => {
           <button
             id="btn-floating-open-sidebar"
             onClick={() => setSidebarCollapsed(false)}
-            className="hidden lg:flex fixed left-5 bottom-6 z-30 items-center space-x-2 bg-[#1C1C1E] text-white hover:bg-black text-xs font-semibold px-4 py-2.5 rounded-full shadow-lg border border-white/10 transition-all active:scale-95 group"
-            title="Desplegar menú lateral a su normalidad"
+            className="hidden lg:flex fixed left-5 bottom-6 z-30 items-center space-x-2 bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium px-3.5 py-2 rounded-md shadow-md border border-slate-700 transition-colors"
+            title="Desplegar menú lateral"
           >
-            <PanelLeftOpen className="w-4 h-4 text-[#007AFF] transition-transform group-hover:scale-110" />
+            <PanelLeftOpen className="w-4 h-4 text-slate-300" />
             <span>Desplegar Menú</span>
           </button>
         )}

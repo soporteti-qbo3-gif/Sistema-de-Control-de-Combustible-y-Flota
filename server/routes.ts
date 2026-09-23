@@ -594,8 +594,9 @@ apiRouter.post('/vehiculos/reset-kilometraje', middlewareAutenticacion, requiere
     v.odometroActual = 0;
     v.ultimoMantenimientoKm = 0;
   });
-  db.cargas = [];
-  db.solicitudes = [];
+  // 🔒 FASE 2: Vaciado seguro de arrays para preservar proxies reactivos de auto-guardado
+  db.vaciarCargas();
+  db.vaciarSolicitudes();
   res.json({ message: 'Kilometraje y registros de combustible de todos los vehículos restablecidos a 0 con éxito.', vehiculos: db.vehiculos });
 });
 
@@ -1323,8 +1324,6 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
     );
   const fotoOdometroUrl = fotoOdometroBase64 || generarOdometroSvgBase64(numOdoActual, vehiculo.placa);
 
-  // 🧠 LÓGICA: Marcar la solicitud como completada con la carga registrada
-  solicitudPendiente.estado = 'COMPLETADA';
   const idSolicitudFinal = solicitudAutorizacionId || solicitudPendiente.id;
 
   try {
@@ -1366,6 +1365,11 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
     });
 
     const nuevaCarga = resultadoCarga.carga;
+
+    // 🔒 FASE 2: Marcar la solicitud como completada ÚNICAMENTE tras el registro exitoso de la carga
+    solicitudPendiente.estado = 'COMPLETADA';
+    solicitudPendiente.cargaId = nuevaCarga.id;
+    db.guardarDatos();
 
     if (esDatoSimulado) {
       nuevaCarga.requiereRevision = true;
@@ -1596,176 +1600,204 @@ apiRouter.put('/cargas/:id', middlewareAutenticacion, requiereAdmin, (req: Authe
   });
 });
 
-apiRouter.put('/cargas/:id/validar', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
-  const { id } = req.params;
-  const {
-    estadoValidacion,
-    notasValidacion,
-    litros,
-    totalPagado,
-    precioPorLitro,
-    odometroActual,
-    estacion,
-    tipoCombustible,
-    servicioDestino,
-    saldoPrepagoId,
-    metodoPago,
-    numeroTicket,
-    claveNumerica,
-    fecha,
-    vehiculoId,
-    conductorId,
-  } = req.body;
+// 🔒 FASE 2: Lock en memoria para evitar condiciones de carrera al validar facturas concurrentemente
+const activeValidacionLocks = new Set<string>();
 
-  const carga = db.cargas.find((c) => c.id === id);
-  if (!carga) {
-    res.status(404).json({ error: 'Carga de combustible no encontrada.' });
+const handlerValidarCarga = async (req: AuthenticatedRequest, res: Response) => {
+  const { id } = req.params;
+
+  if (activeValidacionLocks.has(id)) {
+    res.status(409).json({
+      error: 'VALIDACION_EN_CURSO',
+      message: 'Esta factura de carga ya está siendo validada por otra operación concurrente.',
+    });
     return;
   }
 
-  // Cambio de vehículo si se especificó
-  if (vehiculoId && vehiculoId !== carga.vehiculoId) {
-    const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId);
-    if (vehiculo) {
-      carga.vehiculoId = vehiculo.id;
-      carga.vehiculoPlaca = vehiculo.placa;
+  activeValidacionLocks.add(id);
+
+  try {
+    const {
+      estadoValidacion,
+      notasValidacion,
+      litros,
+      totalPagado,
+      precioPorLitro,
+      odometroActual,
+      estacion,
+      tipoCombustible,
+      servicioDestino,
+      saldoPrepagoId,
+      metodoPago,
+      numeroTicket,
+      claveNumerica,
+      fecha,
+      vehiculoId,
+      conductorId,
+    } = req.body;
+
+    const carga = db.cargas.find((c) => c.id === id);
+    if (!carga) {
+      res.status(404).json({ error: 'Carga de combustible no encontrada.' });
+      return;
     }
-  }
 
-  // Cambio de conductor si se especificó
-  if (conductorId && conductorId !== carga.conductorId) {
-    const cond = db.usuarios.find((u) => u.id === conductorId);
-    if (cond) {
-      carga.conductorId = cond.id;
-      carga.conductorNombre = cond.nombre;
+    // Cambio de vehículo si se especificó
+    if (vehiculoId && vehiculoId !== carga.vehiculoId) {
+      const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId);
+      if (vehiculo) {
+        carga.vehiculoId = vehiculo.id;
+        carga.vehiculoPlaca = vehiculo.placa;
+      }
     }
-  }
 
-  if (estacion !== undefined) carga.estacion = estacion;
-  if (tipoCombustible !== undefined) carga.tipoCombustible = tipoCombustible;
-  if (servicioDestino !== undefined) carga.servicioDestino = servicioDestino;
-  if (saldoPrepagoId !== undefined) carga.saldoPrepagoId = saldoPrepagoId;
-  if (metodoPago !== undefined) carga.metodoPago = metodoPago;
-  if (numeroTicket !== undefined) carga.numeroTicket = numeroTicket;
-  if (claveNumerica !== undefined) carga.claveNumerica = claveNumerica;
-  if (fecha !== undefined) carga.fecha = fecha;
-
-  const numLitros = litros !== undefined ? Number(litros) : carga.litros;
-  let numTotal = totalPagado !== undefined ? Number(totalPagado) : carga.totalPagado;
-  const numOdoActual = odometroActual !== undefined ? Number(odometroActual) : carga.odometroActual;
-
-  if (precioPorLitro !== undefined && litros !== undefined && totalPagado === undefined) {
-    numTotal = Number((Number(precioPorLitro) * numLitros).toFixed(2));
-  }
-
-  const precioUnitario =
-    precioPorLitro !== undefined
-      ? Number(precioPorLitro)
-      : Number((numTotal / (numLitros || 1)).toFixed(2));
-
-  carga.litros = numLitros;
-  carga.totalPagado = numTotal;
-  carga.precioPorLitro = precioUnitario;
-  carga.odometroActual = numOdoActual;
-
-  const vehiculoActual = db.vehiculos.find((v) => v.id === carga.vehiculoId);
-  const metricas = procesarMetricasCarga(
-    numOdoActual,
-    carga.odometroAnterior,
-    numLitros,
-    numTotal,
-    vehiculoActual?.rendimientoTeoricoKmL || 12.0
-  );
-
-  carga.kmRecorridos = metricas.kmRecorridos;
-  carga.costoPorKm = metricas.costoPorKm;
-  carga.rendimientoKmL = metricas.rendimientoKmL;
-  carga.anomaliaDetectada = metricas.anomalia;
-  carga.motivoAnomalia = metricas.motivoAnomalia;
-
-  if (vehiculoActual && numOdoActual > vehiculoActual.odometroActual) {
-    vehiculoActual.odometroActual = numOdoActual;
-  }
-
-  const nuevoEstado = estadoValidacion || 'VALIDADO';
-
-  // Si se va a validar por primera vez (o pasa a VALIDADO)
-  if (nuevoEstado === 'VALIDADO' && carga.estadoValidacion !== 'VALIDADO') {
-    // Si el administrador eligió no descontar de saldo prepago (ej. Crédito directo, Efectivo, Caja Chica)
-    const sinSaldoPrepago =
-      saldoPrepagoId === 'SIN_SALDO_PREPAGO' ||
-      metodoPago === 'Crédito Corporativo' ||
-      metodoPago === 'Caja Chica / Efectivo';
-
-    if (!sinSaldoPrepago) {
-      // 1. Identificar saldo de la estación específico o por nombre de estación
-      let saldo = saldoPrepagoId
-        ? db.saldos.find((s) => s.id === saldoPrepagoId)
-        : db.buscarSaldoPorEstacion(carga.estacion);
-
-      if (!saldo) {
-        res.status(400).json({
-          error: 'SALDO_NO_CONFIGURADO',
-          message: `No se encontró una cuenta de saldo prepago para la estación "${carga.estacion}". Puedes registrar la estación en el módulo de saldos prepago antes de validar.`,
-        });
-        return;
+    // Cambio de conductor si se especificó
+    if (conductorId && conductorId !== carga.conductorId) {
+      const cond = db.usuarios.find((u) => u.id === conductorId);
+      if (cond) {
+        carga.conductorId = cond.id;
+        carga.conductorNombre = cond.nombre;
       }
-
-      // 2. Verificar fondos suficientes
-      if (saldo.saldoActual < numTotal) {
-        const faltante = Number((numTotal - saldo.saldoActual).toFixed(2));
-        res.status(400).json({
-          error: 'SALDO_INSUFICIENTE',
-          message: `Saldo insuficiente en ${saldo.estacionNombre}. Saldo disponible: ₡${Math.round(saldo.saldoActual).toLocaleString('es-CR')}, Faltante: ₡${Math.round(faltante).toLocaleString('es-CR')}. Debe registrar un depósito antes de validar.`,
-          saldoDisponible: saldo.saldoActual,
-          faltante,
-          saldoId: saldo.id,
-          estacionNombre: saldo.estacionNombre,
-          tipoCombustible: carga.tipoCombustible,
-          costoTotalFactura: numTotal,
-        });
-        return;
-      }
-
-      // 3. Descuento atómico del saldo (manteniendo el tipo de combustible en la bitácora)
-      const resultadoDescuento = db.descontarSaldo({
-        saldoId: saldo.id,
-        monto: numTotal,
-        registroCombustibleId: carga.id,
-        tipoCombustible: carga.tipoCombustible,
-        vehiculoPlaca: carga.vehiculoPlaca,
-        numeroTicket: carga.numeroTicket,
-        usuarioId: req.user?.userId || 'usr-admin-1',
-        usuarioNombre: req.user?.nombre || 'Administrador',
-        notas: `Validación factura #${carga.numeroTicket || carga.id} - ${carga.vehiculoPlaca} (${numLitros} L ${carga.tipoCombustible})`,
-      });
-
-      if (!resultadoDescuento.exito) {
-        res.status(400).json({
-          error: 'ERROR_DESCUENTO_SALDO',
-          message: resultadoDescuento.error || 'Error al descontar saldo prepago.',
-        });
-        return;
-      }
-
-      carga.saldoPrepagoId = saldo.id;
-      carga.servicioDestino = saldo.estacionNombre;
     }
+
+    if (estacion !== undefined) carga.estacion = estacion;
+    if (tipoCombustible !== undefined) carga.tipoCombustible = tipoCombustible;
+    if (servicioDestino !== undefined) carga.servicioDestino = servicioDestino;
+    if (saldoPrepagoId !== undefined) carga.saldoPrepagoId = saldoPrepagoId;
+    if (metodoPago !== undefined) carga.metodoPago = metodoPago;
+    if (numeroTicket !== undefined) carga.numeroTicket = numeroTicket;
+    if (claveNumerica !== undefined) carga.claveNumerica = claveNumerica;
+    if (fecha !== undefined) carga.fecha = fecha;
+
+    const numLitros = litros !== undefined ? Number(litros) : carga.litros;
+    let numTotal = totalPagado !== undefined ? Number(totalPagado) : carga.totalPagado;
+    const numOdoActual = odometroActual !== undefined ? Number(odometroActual) : carga.odometroActual;
+
+    if (precioPorLitro !== undefined && litros !== undefined && totalPagado === undefined) {
+      numTotal = Number((Number(precioPorLitro) * numLitros).toFixed(2));
+    }
+
+    const precioUnitario =
+      precioPorLitro !== undefined
+        ? Number(precioPorLitro)
+        : Number((numTotal / (numLitros || 1)).toFixed(2));
+
+    carga.litros = numLitros;
+    carga.totalPagado = numTotal;
+    carga.precioPorLitro = precioUnitario;
+    carga.odometroActual = numOdoActual;
+
+    const vehiculoActual = db.vehiculos.find((v) => v.id === carga.vehiculoId);
+    const metricas = procesarMetricasCarga(
+      numOdoActual,
+      carga.odometroAnterior,
+      numLitros,
+      numTotal,
+      vehiculoActual?.rendimientoTeoricoKmL || 12.0
+    );
+
+    carga.kmRecorridos = metricas.kmRecorridos;
+    carga.costoPorKm = metricas.costoPorKm;
+    carga.rendimientoKmL = metricas.rendimientoKmL;
+    carga.anomaliaDetectada = metricas.anomalia;
+    carga.motivoAnomalia = metricas.motivoAnomalia;
+
+    if (vehiculoActual && numOdoActual > vehiculoActual.odometroActual) {
+      vehiculoActual.odometroActual = numOdoActual;
+    }
+
+    const nuevoEstado = estadoValidacion || 'VALIDADO';
+
+    // Si se va a validar por primera vez (o pasa a VALIDADO)
+    if (nuevoEstado === 'VALIDADO' && carga.estadoValidacion !== 'VALIDADO') {
+      // Si el administrador eligió no descontar de saldo prepago (ej. Crédito directo, Efectivo, Caja Chica)
+      const sinSaldoPrepago =
+        saldoPrepagoId === 'SIN_SALDO_PREPAGO' ||
+        metodoPago === 'Crédito Corporativo' ||
+        metodoPago === 'Caja Chica / Efectivo';
+
+      if (!sinSaldoPrepago) {
+        // 🔒 FASE 2: Bandera saldoYaDescontado para evitar doble descuento si la carga ya descontó saldo
+        if (!carga.saldoYaDescontado) {
+          // 1. Identificar saldo de la estación específico o por nombre de estación
+          const saldo = saldoPrepagoId
+            ? db.saldos.find((s) => s.id === saldoPrepagoId)
+            : db.buscarSaldoPorEstacion(carga.estacion);
+
+          if (!saldo) {
+            res.status(400).json({
+              error: 'SALDO_NO_CONFIGURADO',
+              message: `No se encontró una cuenta de saldo prepago para la estación "${carga.estacion}". Puedes registrar la estación en el módulo de saldos prepago antes de validar.`,
+            });
+            return;
+          }
+
+          // 2. Verificar fondos suficientes
+          if (saldo.saldoActual < numTotal) {
+            const faltante = Number((numTotal - saldo.saldoActual).toFixed(2));
+            res.status(400).json({
+              error: 'SALDO_INSUFICIENTE',
+              message: `Saldo insuficiente en ${saldo.estacionNombre}. Saldo disponible: ₡${Math.round(saldo.saldoActual).toLocaleString('es-CR')}, Faltante: ₡${Math.round(faltante).toLocaleString('es-CR')}. Debe registrar un depósito antes de validar.`,
+              saldoDisponible: saldo.saldoActual,
+              faltante,
+              saldoId: saldo.id,
+              estacionNombre: saldo.estacionNombre,
+              tipoCombustible: carga.tipoCombustible,
+              costoTotalFactura: numTotal,
+            });
+            return;
+          }
+
+          // 3. Descuento atómico del saldo (manteniendo el tipo de combustible en la bitácora)
+          const resultadoDescuento = db.descontarSaldo({
+            saldoId: saldo.id,
+            monto: numTotal,
+            registroCombustibleId: carga.id,
+            tipoCombustible: carga.tipoCombustible,
+            vehiculoPlaca: carga.vehiculoPlaca,
+            numeroTicket: carga.numeroTicket,
+            usuarioId: req.user?.userId || 'usr-admin-1',
+            usuarioNombre: req.user?.nombre || 'Administrador',
+            notas: `Validación factura #${carga.numeroTicket || carga.id} - ${carga.vehiculoPlaca} (${numLitros} L ${carga.tipoCombustible})`,
+          });
+
+          if (!resultadoDescuento.exito) {
+            res.status(400).json({
+              error: 'ERROR_DESCUENTO_SALDO',
+              message: resultadoDescuento.error || 'Error al descontar saldo prepago.',
+            });
+            return;
+          }
+
+          carga.saldoPrepagoId = saldo.id;
+          carga.servicioDestino = saldo.estacionNombre;
+          carga.saldoYaDescontado = true;
+        }
+      }
+    }
+
+    carga.estadoValidacion = nuevoEstado;
+    carga.validadoPor = req.user?.nombre || 'Administrador';
+    carga.fechaValidacion = new Date().toISOString();
+    carga.notasValidacion = notasValidacion || carga.notasValidacion;
+
+    db.guardarDatos();
+
+    res.json({
+      message: `Factura ${nuevoEstado === 'VALIDADO' ? 'aprobada y validada' : 'actualizada'} exitosamente.`,
+      carga,
+    });
+  } finally {
+    activeValidacionLocks.delete(id);
   }
+};
 
-  carga.estadoValidacion = nuevoEstado;
-  carga.validadoPor = req.user?.nombre || 'Administrador';
-  carga.fechaValidacion = new Date().toISOString();
-  carga.notasValidacion = notasValidacion || carga.notasValidacion;
-
-  res.json({
-    message: `Factura ${nuevoEstado === 'VALIDADO' ? 'aprobada y validada' : 'actualizada'} exitosamente.`,
-    carga,
-  });
-});
+apiRouter.put('/cargas/:id/validar', middlewareAutenticacion, requiereAdmin, handlerValidarCarga);
+apiRouter.post('/cargas/:id/validar', middlewareAutenticacion, requiereAdmin, handlerValidarCarga);
 
 apiRouter.delete('/cargas/todas', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
-  db.cargas = [];
+  // 🔒 FASE 2: Vaciado seguro de array preservando el proxy reactivo
+  db.vaciarCargas();
   res.json({ message: 'Todo el historial de cargas de combustible ha sido eliminado correctamente.' });
 });
 

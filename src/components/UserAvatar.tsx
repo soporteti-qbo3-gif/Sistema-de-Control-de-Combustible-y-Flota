@@ -1,10 +1,10 @@
 /**
- * Componente de Identidad Visual para Usuarios y Choferes (Sin fotografías externas)
- * Muestra Iniciales tipográficas estilizadas o icono de perfil
+ * Componente de Identidad Visual para Usuarios y Conductores
+ * Muestra iniciales tipográficas nítidas en monospace con alto contraste y sin decoraciones infantiles
  */
 
 import React from 'react';
-import { User, ShieldCheck } from 'lucide-react';
+import { User } from 'lucide-react';
 import { UserRole } from '../types';
 
 interface UserAvatarProps {
@@ -34,27 +34,19 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
   const sizeClasses = {
     xs: 'w-6 h-6 text-[10px]',
-    sm: 'w-8 h-8 text-xs',
-    md: 'w-10 h-10 text-sm',
-    lg: 'w-12 h-12 text-base font-bold',
-    xl: 'w-16 h-16 text-lg font-bold',
-  };
-
-  const badgeSizeClasses = {
-    xs: 'w-2 h-2',
-    sm: 'w-2.5 h-2.5',
-    md: 'w-3 h-3',
-    lg: 'w-3.5 h-3.5',
-    xl: 'w-4 h-4',
+    sm: 'w-7 h-7 text-[11px]',
+    md: 'w-8 h-8 text-xs',
+    lg: 'w-10 h-10 text-sm font-bold',
+    xl: 'w-12 h-12 text-base font-bold',
   };
 
   return (
     <div className={`relative inline-flex items-center justify-center flex-shrink-0 ${className}`}>
       <div
-        className={`${sizeClasses[size]} rounded-lg flex items-center justify-center font-semibold tracking-tight select-none border transition-all ${
+        className={`${sizeClasses[size]} rounded-md flex items-center justify-center font-mono font-medium tracking-tight select-none border transition-colors ${
           isAdmin
             ? 'bg-slate-900 text-white border-slate-800'
-            : 'bg-slate-100 text-slate-700 border-slate-200'
+            : 'bg-slate-100 text-slate-800 border-slate-300'
         }`}
         title={`${nombre} ${rol ? `(${rol})` : ''}`}
       >
@@ -63,8 +55,8 @@ export const UserAvatar: React.FC<UserAvatarProps> = ({
 
       {showRoleBadge && rol && (
         <span
-          className={`absolute -bottom-0.5 -right-0.5 ${badgeSizeClasses[size]} rounded-full border-2 border-white ${
-            isAdmin ? 'bg-slate-700' : 'bg-emerald-600'
+          className={`absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full border border-white ${
+            isAdmin ? 'bg-blue-600' : 'bg-emerald-600'
           }`}
           title={isAdmin ? 'Administrador' : 'Conductor'}
         />

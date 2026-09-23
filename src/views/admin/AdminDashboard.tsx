@@ -1,25 +1,21 @@
 /**
  * Dashboard Ejecutivo de Operaciones de Flota & Combustible
- * Diseño sobrio, sin sobrecarga de tarjetas, alta densidad informativa y control directo.
+ * Diseño industrial, alta densidad informativa, estricto orden visual sin elementos infantiles
  */
 
 import React, { useState, useEffect } from 'react';
 import {
-  LayoutDashboard,
-  Gauge,
   CheckCircle2,
   KeyRound,
   BarChart3,
   Wallet,
   ArrowUpRight,
   TrendingUp,
-  Clock,
-  ChevronRight,
   RefreshCw,
   Truck,
   Building2,
-  AlertTriangle,
-  FileCheck2,
+  ChevronRight,
+  Gauge,
   SlidersHorizontal,
 } from 'lucide-react';
 import { api } from '../../services/api';
@@ -28,6 +24,7 @@ import {
   ResponsiveContainer,
   BarChart,
   Bar,
+  Cell,
   XAxis,
   YAxis,
   Tooltip,
@@ -38,6 +35,15 @@ import {
 interface AdminDashboardProps {
   setVistaActiva: (v: string) => void;
 }
+
+const COLORES_GRAFICO_MESES = [
+  '#2563EB', // Azul corporativo
+  '#059669', // Esmeralda vibrante
+  '#D97706', // Ámbar intenso
+  '#7C3AED', // Violeta dinámico
+  '#0284C7', // Azul cian
+  '#E11D48', // Carmesí
+];
 
 export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }) => {
   const [metricas, setMetricas] = useState<MetricasFlota | null>(null);
@@ -99,34 +105,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
         ];
 
   return (
-    <div className="w-full max-w-7xl mx-auto space-y-5 pb-16">
-      {/* 1. Header Ejecutivo con Large Title al estilo Apple iOS / macOS */}
-      <div className="flex flex-col lg:flex-row lg:items-end justify-between pb-2 gap-4">
+    <div className="w-full max-w-7xl mx-auto space-y-4 pb-12">
+      {/* 1. Encabezado Ejecutivo */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between pb-1 gap-3 border-b border-slate-200/80">
         <div>
-          <div className="flex items-center space-x-2.5 mb-1">
-            <span className="w-2.5 h-2.5 rounded-full bg-[#34C759] ring-4 ring-[#34C759]/20" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Operaciones de Flota • Turno Activo
+          <div className="flex items-center space-x-2 mb-0.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+            <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500">
+              Operaciones Centrales · Turno Activo
             </span>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-bold text-[#1C1C1E] tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
             Control de Flota y Combustible
           </h1>
-          <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Monitoreo en vivo de saldos en bombas, odómetros certificados y auditoría fotográfica
+          <p className="text-xs text-slate-500 mt-0.5">
+            Monitoreo en tiempo real · Conciliación de facturas · Odómetros certificados · Saldos prepago
           </p>
         </div>
 
-        {/* Botones de Comando Operativo con estilo Apple HIG */}
+        {/* Barra de Acciones Operativas */}
         <div className="flex items-center space-x-2 flex-wrap gap-y-2">
           <button
             onClick={() => setVistaActiva('admin-validacion')}
-            className="apple-press-feedback flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0066D6] text-white text-xs font-semibold shadow-xs"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-slate-900 hover:bg-slate-800 text-white text-xs font-medium transition-colors"
           >
-            <CheckCircle2 className="w-4 h-4 text-white" />
-            <span>Auditoría IA</span>
+            <CheckCircle2 className="w-3.5 h-3.5 text-slate-300" />
+            <span>Auditar Cargas</span>
             {cargasPendientes.length > 0 && (
-              <span className="ml-1 px-1.5 py-0.2 bg-white text-[#007AFF] rounded-full text-[10px] font-bold">
+              <span className="ml-1 px-1.5 py-0.2 bg-slate-800 text-white rounded font-mono text-[10px] font-semibold">
                 {cargasPendientes.length}
               </span>
             )}
@@ -134,29 +140,29 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
 
           <button
             onClick={() => setVistaActiva('admin-saldos')}
-            className={`apple-press-feedback flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium border transition-colors ${
               bombasEnAlerta.length > 0
-                ? 'bg-[#FF9500]/10 text-[#C97700] border-[#FF9500]/30 hover:bg-[#FF9500]/20'
-                : 'bg-white text-slate-700 border-black/[0.08] hover:bg-black/[0.02]'
+                ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
             }`}
           >
             <Wallet className="w-3.5 h-3.5 text-slate-500" />
             <span>Saldos Bombas</span>
             {bombasEnAlerta.length > 0 && (
-              <span className="text-[10px] font-bold">
-                • {bombasEnAlerta.length} Alerta
+              <span className="font-mono text-[10px] font-bold text-amber-700">
+                ({bombasEnAlerta.length})
               </span>
             )}
           </button>
 
           <button
             onClick={() => setVistaActiva('admin-solicitudes')}
-            className="apple-press-feedback flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-black/[0.08] hover:bg-black/[0.02] text-slate-700 text-xs font-semibold transition-all"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium transition-colors"
           >
             <KeyRound className="w-3.5 h-3.5 text-slate-500" />
             <span>Tokens</span>
             {solicitudesPendientes.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-black/[0.06] text-slate-800 rounded-md text-[10px] font-mono font-bold">
+              <span className="px-1 py-0.2 bg-slate-100 text-slate-800 rounded font-mono text-[10px] font-semibold">
                 {solicitudesPendientes.length}
               </span>
             )}
@@ -164,7 +170,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
 
           <button
             onClick={() => setVistaActiva('admin-reportes')}
-            className="apple-press-feedback p-2 rounded-xl bg-white border border-black/[0.08] text-slate-600 hover:text-black hover:bg-black/[0.02] transition-all"
+            className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             title="Reportes comparativos"
           >
             <BarChart3 className="w-4 h-4" />
@@ -173,7 +179,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
           <button
             onClick={cargarDashboard}
             disabled={cargando}
-            className="apple-press-feedback p-2 rounded-xl bg-white border border-black/[0.08] text-slate-600 hover:text-black hover:bg-black/[0.02] transition-all"
+            className="p-1.5 rounded-md bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 transition-colors"
             title="Refrescar datos"
           >
             <RefreshCw className={`w-4 h-4 ${cargando ? 'animate-spin' : ''}`} />
@@ -181,167 +187,167 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
         </div>
       </div>
 
-      {/* 2. Ribbon de Métricas Continuo (Ledger Inset Grouped de alta densidad) */}
-      <div className="bg-white border border-black/[0.06] rounded-2xl overflow-hidden shadow-xs divide-y sm:divide-y-0 sm:divide-x divide-black/[0.06] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5">
-        {/* Métrica 1: Saldo Prepago en Estaciones */}
+      {/* 2. Cuadrícula de Métricas Clave (KPIs Ejecutivos) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        {/* KPI 1: Saldo en Estaciones */}
         <div
           onClick={() => setVistaActiva('admin-saldos')}
-          className="p-4 hover:bg-black/[0.015] transition-colors cursor-pointer flex flex-col justify-between group"
+          className="bg-white border border-slate-200 rounded-lg p-3.5 hover:border-emerald-300 transition-colors cursor-pointer flex flex-col justify-between group"
         >
-          <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500">
               Saldo en Bombas
             </span>
-            <div className="w-6 h-6 rounded-lg bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF]">
+            <div className="w-7 h-7 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center">
               <Wallet className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+            <div className="text-xl font-mono font-bold text-slate-900 tabular-nums">
               ₡{totalSaldoDisponible.toLocaleString('es-CR')}
             </div>
-            <div className="flex items-center space-x-2 mt-1.5">
+            <div className="flex items-center space-x-1.5 mt-1 text-[11px] text-slate-500">
               {bombasEnAlerta.length > 0 ? (
-                <span className="text-[10px] font-bold text-[#FF3B30] bg-[#FF3B30]/10 px-2 py-0.5 rounded-full">
+                <span className="text-amber-700 font-medium font-mono text-[10px]">
                   {bombasEnAlerta.length} bajo umbral
                 </span>
               ) : (
-                <span className="text-[10px] font-bold text-[#248A3D] bg-[#34C759]/10 px-2 py-0.5 rounded-full">
-                  Fondos activos
-                </span>
+                <span className="text-emerald-700 font-medium">Fondos óptimos</span>
               )}
-              <span className="text-[11px] text-slate-400">3 estaciones</span>
+              <span aria-hidden="true">·</span>
+              <span>3 estaciones</span>
             </div>
           </div>
         </div>
 
-        {/* Métrica 2: Kilometraje Recorrido */}
-        <div className="p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+        {/* KPI 2: Recorrido Mensual */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500">
               Recorrido Mensual
             </span>
-            <div className="w-6 h-6 rounded-lg bg-[#34C759]/10 flex items-center justify-center text-[#34C759]">
+            <div className="w-7 h-7 rounded-md bg-blue-50 text-blue-600 border border-blue-200 flex items-center justify-center">
               <Gauge className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+            <div className="text-xl font-mono font-bold text-slate-900 tabular-nums">
               {metricas?.totalKmRecorridos
                 ? Number(metricas.totalKmRecorridos).toLocaleString()
                 : '14,850'}
-              <span className="text-xs font-normal text-slate-500 ml-1">km</span>
+              <span className="text-xs font-normal text-slate-500 ml-1 font-sans">km</span>
             </div>
-            <div className="flex items-center space-x-1 mt-1.5 text-[11px] text-[#248A3D] font-semibold">
-              <TrendingUp className="w-3 h-3" />
-              <span>+8.2% vs mes anterior</span>
+            <div className="flex items-center space-x-1 mt-1 text-[11px] text-slate-500">
+              <TrendingUp className="w-3 h-3 text-emerald-600" />
+              <span className="text-emerald-700 font-medium">+8.2%</span>
+              <span>vs mes anterior</span>
             </div>
           </div>
         </div>
 
-        {/* Métrica 3: Consumo e Inversión */}
-        <div className="p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+        {/* KPI 3: Inversión en Combustible */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500">
               Combustible Facturado
             </span>
-            <div className="w-6 h-6 rounded-lg bg-[#AF52DE]/10 flex items-center justify-center text-[#AF52DE]">
+            <div className="w-7 h-7 rounded-md bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center">
               <Building2 className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+            <div className="text-xl font-mono font-bold text-slate-900 tabular-nums">
               ₡{metricas?.gastoTotalCombustible
                 ? Number(metricas.gastoTotalCombustible).toLocaleString()
                 : '1,485,000'}
             </div>
-            <div className="text-[11px] text-slate-400 mt-1.5 font-medium">
-              {metricas?.totalLitrosCargados || 2150} Litros despachados
+            <div className="text-[11px] text-slate-500 mt-1 font-mono">
+              {metricas?.totalLitrosCargados || 2150} L despachados
             </div>
           </div>
         </div>
 
-        {/* Métrica 4: Rendimiento */}
-        <div className="p-4 flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              Rendimiento Promedio
+        {/* KPI 4: Rendimiento Promedio */}
+        <div className="bg-white border border-slate-200 rounded-lg p-3.5 flex flex-col justify-between">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500">
+              Rendimiento Flota
             </span>
-            <div className="w-6 h-6 rounded-lg bg-[#FF9500]/10 flex items-center justify-center text-[#FF9500]">
+            <div className="w-7 h-7 rounded-md bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center">
               <SlidersHorizontal className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+            <div className="text-xl font-mono font-bold text-slate-900 tabular-nums">
               {metricas?.rendimientoPromedioFlotaKmL
                 ? metricas.rendimientoPromedioFlotaKmL.toFixed(1)
                 : '7.8'}
-              <span className="text-xs font-normal text-slate-500 ml-1">km/L</span>
+              <span className="text-xs font-normal text-slate-500 ml-1 font-sans">km/L</span>
             </div>
-            <div className="text-[11px] text-slate-400 mt-1.5">
-              Consumo ponderado en ruta
+            <div className="text-[11px] text-slate-500 mt-1">
+              Promedio ponderado en ruta
             </div>
           </div>
         </div>
 
-        {/* Métrica 5: Vehículos & Conductores */}
+        {/* KPI 5: Parque Vehicular */}
         <div
           onClick={() => setVistaActiva('admin-vehiculos')}
-          className="p-4 hover:bg-black/[0.015] transition-colors cursor-pointer flex flex-col justify-between group"
+          className="bg-white border border-slate-200 rounded-lg p-3.5 hover:border-violet-300 transition-colors cursor-pointer flex flex-col justify-between group"
         >
-          <div className="flex items-center justify-between text-slate-500 mb-1.5">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+          <div className="flex items-center justify-between text-slate-500 mb-1">
+            <span className="text-[10px] font-mono font-medium uppercase tracking-wider text-slate-500">
               Parque Vehicular
             </span>
-            <div className="w-6 h-6 rounded-lg bg-[#007AFF]/10 flex items-center justify-center text-[#007AFF]">
+            <div className="w-7 h-7 rounded-md bg-violet-50 text-violet-600 border border-violet-200 flex items-center justify-center">
               <Truck className="w-3.5 h-3.5" />
             </div>
           </div>
           <div>
-            <div className="text-2xl font-mono font-bold text-[#1C1C1E] leading-tight">
+            <div className="text-xl font-mono font-bold text-slate-900 tabular-nums">
               {metricas?.totalVehiculos || 19}
-              <span className="text-xs font-normal text-slate-500 ml-1">unidades</span>
+              <span className="text-xs font-normal text-slate-500 ml-1 font-sans">unidades</span>
             </div>
-            <div className="text-[11px] text-slate-400 mt-1.5 flex items-center space-x-1">
-              <span>{metricas?.totalConductores || 6} conductores asignados</span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:translate-x-0.5 transition-transform" />
+            <div className="text-[11px] text-slate-500 mt-1 flex items-center justify-between">
+              <span>{metricas?.totalConductores || 6} conductores</span>
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-700" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* 3. Área Operacional en Dos Columnas (Gráfica Técnica + Cola de Atención Inmediata) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        {/* Columna Izquierda: Evolución y Registro de Consumo (7 cols) */}
-        <div className="lg:col-span-7 bg-white border border-black/[0.06] rounded-2xl p-5 flex flex-col justify-between shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3.5 border-b border-black/[0.06] gap-3">
+      {/* 3. Panel de Análisis y Cola Operativa Inmediata */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+        {/* Gráfico de Evolución de Consumo (7 cols) */}
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-100 gap-2">
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-[#1C1C1E]">
-                Evolución de Gasto & Kilometraje
+              <h2 className="text-sm font-semibold text-slate-900">
+                Evolución de Gasto y Recorrido
               </h2>
               <p className="text-xs text-slate-500">
-                Historial semestral por período de facturación
+                Historial semestral por ciclo de facturación
               </p>
             </div>
 
-            {/* Selector de Perspectiva (Segmented Control estilo iOS) */}
-            <div className="flex items-center bg-black/[0.05] p-1 rounded-xl text-xs">
+            {/* Segmented Control Sobrio */}
+            <div className="flex items-center bg-slate-100 p-0.5 rounded-md text-xs">
               <button
                 onClick={() => setVistaGrafico('comparativa')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   vistaGrafico === 'comparativa'
-                    ? 'bg-white text-[#1C1C1E] shadow-xs'
-                    : 'text-slate-600 hover:text-black'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Gasto vs Km
               </button>
               <button
                 onClick={() => setVistaGrafico('gasto')}
-                className={`px-3 py-1.5 rounded-lg font-semibold transition-all ${
+                className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                   vistaGrafico === 'gasto'
-                    ? 'bg-white text-[#1C1C1E] shadow-xs'
-                    : 'text-slate-600 hover:text-black'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
                 Solo Gasto (₡)
@@ -349,18 +355,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
             </div>
           </div>
 
-          <div className="h-64 sm:h-72 w-full pt-4">
+          <div className="h-64 sm:h-72 w-full pt-3">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={chartData}
                 margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(60, 60, 67, 0.08)" />
+                <CartesianGrid strokeDasharray="2 2" vertical={false} stroke="#F1F5F9" />
                 <XAxis
                   dataKey="mes"
-                  tick={{ fontSize: 11, fill: '#64748B', fontWeight: 600 }}
+                  tick={{ fontSize: 11, fill: '#64748B' }}
                   tickLine={false}
-                  axisLine={{ stroke: 'rgba(60, 60, 67, 0.12)' }}
+                  axisLine={{ stroke: '#E2E8F0' }}
                 />
                 <YAxis
                   yAxisId="left"
@@ -373,7 +379,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
                   <YAxis
                     yAxisId="right"
                     orientation="right"
-                    tick={{ fontSize: 10, fill: '#34C759' }}
+                    tick={{ fontSize: 10, fill: '#475569' }}
                     tickFormatter={(v) => `${(v / 1000).toFixed(0)}k km`}
                     tickLine={false}
                     axisLine={false}
@@ -381,40 +387,48 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
                 )}
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: 'rgba(28, 28, 30, 0.95)',
-                    borderRadius: '14px',
-                    border: '1px solid rgba(255, 255, 255, 0.12)',
+                    backgroundColor: '#0F172A',
+                    borderRadius: '6px',
+                    border: '1px solid #1E293B',
                     color: '#FFFFFF',
-                    fontSize: '12px',
-                    padding: '10px 14px',
-                    boxShadow: '0 8px 24px rgba(0, 0, 0, 0.2)',
+                    fontSize: '11px',
+                    padding: '8px 12px',
+                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
                   }}
                   formatter={(value: any, name: any) => [
                     name === 'Gasto Combustible' || name === 'gasto'
                       ? `₡${Number(value).toLocaleString()} CRC`
                       : `${Number(value).toLocaleString()} km`,
                     name === 'Gasto Combustible' || name === 'gasto'
-                      ? 'Gasto Combustible'
-                      : 'Recorrido',
+                      ? 'Inversión Combustible'
+                      : 'Kilometraje',
                   ]}
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: '11px', paddingTop: '10px' }}
-                  iconType="circle"
+                  wrapperStyle={{ fontSize: '11px', paddingTop: '8px' }}
+                  iconType="square"
                 />
                 <Bar
                   yAxisId="left"
                   dataKey="gasto"
-                  fill="#007AFF"
-                  radius={[6, 6, 0, 0]}
-                  name="Gasto Combustible (₡)"
-                />
+                  fill="#2563EB"
+                  radius={[3, 3, 0, 0]}
+                  name="Inversión Combustible (₡)"
+                >
+                  {vistaGrafico === 'gasto' &&
+                    chartData.map((_, index) => (
+                      <Cell
+                        key={`cell-gasto-${index}`}
+                        fill={COLORES_GRAFICO_MESES[index % COLORES_GRAFICO_MESES.length]}
+                      />
+                    ))}
+                </Bar>
                 {vistaGrafico === 'comparativa' && (
                   <Bar
                     yAxisId="right"
                     dataKey="km"
-                    fill="#34C759"
-                    radius={[6, 6, 0, 0]}
+                    fill="#10B981"
+                    radius={[3, 3, 0, 0]}
                     name="Recorrido (km)"
                   />
                 )}
@@ -423,90 +437,87 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
           </div>
         </div>
 
-        {/* Columna Derecha: Cola de Atención Inmediata (5 cols) */}
-        <div className="lg:col-span-5 bg-white border border-black/[0.06] rounded-2xl p-5 flex flex-col justify-between shadow-xs">
+        {/* Cola de Atención Inmediata (5 cols) */}
+        <div className="lg:col-span-5 bg-white border border-slate-200 rounded-lg p-4 flex flex-col justify-between">
           <div>
-            <div className="flex items-center justify-between pb-3.5 border-b border-black/[0.06]">
-              {/* Segmented Control para tabs */}
-              <div className="flex items-center bg-black/[0.05] p-1 rounded-xl">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center bg-slate-100 p-0.5 rounded-md">
                 <button
                   onClick={() => setTabCola('cargas')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                     tabCola === 'cargas'
-                      ? 'bg-white text-[#1C1C1E] shadow-xs'
-                      : 'text-slate-500 hover:text-black'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Auditorías ({cargasPendientes.length})
                 </button>
                 <button
                   onClick={() => setTabCola('solicitudes')}
-                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors ${
                     tabCola === 'solicitudes'
-                      ? 'bg-white text-[#1C1C1E] shadow-xs'
-                      : 'text-slate-500 hover:text-black'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   Tokens ({solicitudesPendientes.length})
                 </button>
               </div>
 
-              <span className="text-[11px] text-slate-400 uppercase font-mono font-bold">
+              <span className="text-[10px] font-mono text-slate-400 uppercase font-medium">
                 Prioridad
               </span>
             </div>
 
-            {/* Lista Tabular de Cargas por Auditar */}
+            {/* Cola: Auditorías */}
             {tabCola === 'cargas' && (
-              <div className="divide-y divide-black/[0.04] mt-2">
+              <div className="divide-y divide-slate-100 mt-1">
                 {cargasPendientes.length === 0 ? (
-                  <div className="py-12 text-center space-y-2">
-                    <div className="w-12 h-12 rounded-full bg-[#34C759]/10 text-[#34C759] flex items-center justify-center mx-auto">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-bold text-[#1C1C1E]">
-                      Auditorías al día
+                  <div className="py-10 text-center space-y-1.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" />
+                    <p className="text-xs font-medium text-slate-800">
+                      Sin auditorías pendientes
                     </p>
-                    <p className="text-xs text-slate-500">
-                      No hay cargas pendientes de verificación fotográfica.
+                    <p className="text-[11px] text-slate-500">
+                      Todas las facturas y odómetros han sido certificados.
                     </p>
                   </div>
                 ) : (
                   cargasPendientes.slice(0, 4).map((carga) => (
                     <div
                       key={carga.id}
-                      className="py-3 flex items-center justify-between hover:bg-black/[0.02] px-2 rounded-xl transition-all group cursor-pointer"
+                      className="py-2.5 flex items-center justify-between hover:bg-slate-50 px-1.5 rounded transition-colors group cursor-pointer"
                       onClick={() => setVistaActiva('admin-validacion')}
                     >
                       <div className="min-w-0 pr-2">
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-bold text-[#1C1C1E] bg-black/[0.05] px-2 py-0.5 rounded-md">
+                          <span className="font-mono text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
                             {carga.vehiculoPlaca || 'FLOTA'}
                           </span>
-                          <span className="text-xs font-bold text-[#1C1C1E] truncate">
+                          <span className="text-xs font-medium text-slate-900 truncate">
                             {carga.conductorNombre || 'Conductor'}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-1">
-                          <span className="font-semibold text-slate-700">{carga.litros} L</span>
-                          <span>•</span>
+                        <div className="flex items-center space-x-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono font-medium text-slate-700">{carga.litros} L</span>
+                          <span aria-hidden="true">·</span>
                           <span className="font-mono">₡{Number(carga.totalPagado).toLocaleString()}</span>
-                          <span>•</span>
+                          <span aria-hidden="true">·</span>
                           <span className="truncate">{carga.estacion}</span>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-2 flex-shrink-0">
                         {carga.estadoValidacion === 'REQUIERE_REVISION' ? (
-                          <span className="text-[10px] font-bold text-[#C97700] bg-[#FF9500]/15 px-2.5 py-0.5 rounded-full">
+                          <span className="text-[10px] font-medium text-amber-800 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
                             Revisión
                           </span>
                         ) : (
-                          <span className="text-[10px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-2.5 py-0.5 rounded-full">
+                          <span className="text-[10px] font-medium text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
                             Pendiente
                           </span>
                         )}
-                        <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[#007AFF] transition-colors" />
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 transition-colors" />
                       </div>
                     </div>
                   ))
@@ -514,51 +525,49 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
               </div>
             )}
 
-            {/* Lista Tabular de Solicitudes de Autorización */}
+            {/* Cola: Solicitudes */}
             {tabCola === 'solicitudes' && (
-              <div className="divide-y divide-black/[0.04] mt-2">
+              <div className="divide-y divide-slate-100 mt-1">
                 {solicitudesPendientes.length === 0 ? (
-                  <div className="py-12 text-center space-y-2">
-                    <div className="w-12 h-12 rounded-full bg-[#34C759]/10 text-[#34C759] flex items-center justify-center mx-auto">
-                      <CheckCircle2 className="w-6 h-6" />
-                    </div>
-                    <p className="text-sm font-bold text-[#1C1C1E]">
+                  <div className="py-10 text-center space-y-1.5">
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600 mx-auto" />
+                    <p className="text-xs font-medium text-slate-800">
                       Sin solicitudes en espera
                     </p>
-                    <p className="text-xs text-slate-500">
-                      Todos los tokens han sido emitidos o completados.
+                    <p className="text-[11px] text-slate-500">
+                      Todos los tokens de carga han sido autorizados.
                     </p>
                   </div>
                 ) : (
                   solicitudesPendientes.slice(0, 4).map((sol) => (
                     <div
                       key={sol.id}
-                      className="py-3 flex items-center justify-between hover:bg-black/[0.02] px-2 rounded-xl transition-all group cursor-pointer"
+                      className="py-2.5 flex items-center justify-between hover:bg-slate-50 px-1.5 rounded transition-colors group cursor-pointer"
                       onClick={() => setVistaActiva('admin-solicitudes')}
                     >
                       <div className="min-w-0 pr-2">
                         <div className="flex items-center space-x-2">
-                          <span className="font-mono text-xs font-bold text-[#1C1C1E] bg-black/[0.05] px-2 py-0.5 rounded-md">
+                          <span className="font-mono text-xs font-medium text-slate-800 bg-slate-100 px-1.5 py-0.2 rounded border border-slate-200">
                             {sol.vehiculoPlaca || 'UNIDAD'}
                           </span>
-                          <span className="text-xs font-bold text-[#1C1C1E] truncate">
+                          <span className="text-xs font-medium text-slate-900 truncate">
                             {sol.conductorNombre}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2 text-[11px] text-slate-500 mt-1">
-                          <span className="font-bold text-[#248A3D]">
+                        <div className="flex items-center space-x-1.5 text-[11px] text-slate-500 mt-0.5">
+                          <span className="font-mono font-medium text-emerald-700">
                             {sol.litrosSolicitados} Litros
                           </span>
-                          <span>•</span>
-                          <span className="truncate">{sol.estacionSugerida || 'Bomba'}</span>
+                          <span aria-hidden="true">·</span>
+                          <span className="truncate">{sol.estacionSugerida || 'Bomba sugerida'}</span>
                         </div>
                       </div>
 
                       <div className="flex items-center space-x-2 flex-shrink-0">
-                        <span className="text-[10px] font-bold text-[#007AFF] bg-[#007AFF]/10 px-2.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-medium text-slate-700 bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded">
                           Emitir
                         </span>
-                        <ArrowUpRight className="w-4 h-4 text-slate-400 group-hover:text-[#007AFF] transition-colors" />
+                        <ArrowUpRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-900 transition-colors" />
                       </div>
                     </div>
                   ))
@@ -567,12 +576,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
             )}
           </div>
 
-          {/* Enlace al pie del panel para ir a la vista completa */}
-          <div className="pt-4 border-t border-black/[0.06] flex items-center justify-between mt-2">
-            <span className="text-[11px] text-slate-400">
+          {/* Enlace al pie */}
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-2">
+            <span className="text-[11px] text-slate-500 font-mono">
               {tabCola === 'cargas'
-                ? `${cargasPendientes.length} cargas registradas en espera`
-                : `${solicitudesPendientes.length} conductores esperando autorización`}
+                ? `${cargasPendientes.length} cargas por auditar`
+                : `${solicitudesPendientes.length} solicitudes en espera`}
             </span>
             <button
               onClick={() =>
@@ -580,10 +589,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ setVistaActiva }
                   tabCola === 'cargas' ? 'admin-validacion' : 'admin-solicitudes'
                 )
               }
-              className="text-xs font-bold text-[#007AFF] hover:underline flex items-center space-x-1"
+              className="text-xs font-medium text-slate-900 hover:underline flex items-center space-x-1"
             >
-              <span>Abrir Módulo</span>
-              <ChevronRight className="w-3.5 h-3.5" />
+              <span>Ver Módulo Completo</span>
+              <ChevronRight className="w-3 h-3" />
             </button>
           </div>
         </div>

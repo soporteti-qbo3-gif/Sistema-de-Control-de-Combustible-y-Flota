@@ -137,8 +137,9 @@ class BaseDeDatosFlota {
     this.activarAutoPersistencia();
   }
 
-  // 🧠 LÓGICA: Guarda automáticamente el estado actual de la flota en data.json usando fs.writeFileSync de forma atómica y consistente
+  // 🧠 LÓGICA (Fase 2): Guarda atómicamente el estado actual en data.json usando tmp + renameSync
   public guardarDatos(): void {
+    const tempFile = `${DATA_FILE}.tmp.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`;
     try {
       const estado = {
         usuarios: this.usuarios,
@@ -156,10 +157,29 @@ class BaseDeDatosFlota {
         bombas: this.bombas,
         audit_logs: this.audit_logs,
       };
-      fs.writeFileSync(DATA_FILE, JSON.stringify(estado, null, 2), 'utf-8');
+      fs.writeFileSync(tempFile, JSON.stringify(estado, null, 2), 'utf-8');
+      fs.renameSync(tempFile, DATA_FILE);
     } catch (error) {
-      console.error('Error al guardar datos en data.json:', error);
+      console.error('Error al guardar datos atómicamente en data.json:', error);
+      if (fs.existsSync(tempFile)) {
+        try {
+          fs.unlinkSync(tempFile);
+        } catch {
+          // Ignorar error al limpiar archivo temporal
+        }
+      }
     }
+  }
+
+  // 🔒 FASE 2: Métodos de vaciado seguro que preservan la instancia del Proxy reactivo
+  public vaciarCargas(): void {
+    this.cargas.length = 0;
+    this.guardarDatos();
+  }
+
+  public vaciarSolicitudes(): void {
+    this.solicitudes.length = 0;
+    this.guardarDatos();
   }
 
   // 🧠 LÓGICA: Carga los datos persistidos desde data.json si el archivo existe al inicializar la clase
@@ -1294,6 +1314,10 @@ class BaseDeDatosFlota {
     // 12. Bombas de Gasolina Prepago y Lecturas de Odómetro
     this.inicializarBombasPorDefecto();
     this.inicializarLecturasOdometroPorDefecto();
+
+    // 🔒 FASE 2: Reactivar proxies y persistir atómicamente tras re-inicialización
+    this.activarAutoPersistencia();
+    this.guardarDatos();
   }
 
   public inicializarBombasPorDefecto(): void {
@@ -1628,25 +1652,53 @@ class BaseDeDatosFlota {
       .trim();
   }
 
-  public buscarSaldoPorEstacion(estacionNombre: string, estacionId?: string): SaldoEstacion | undefined {
+  public buscarSaldoPorEstacion(
+    estacionNombre: string,
+    estacionId?: string,
+    exigirExistencia: boolean = false
+  ): SaldoEstacion | undefined {
     if (estacionId) {
       const saldoPorId = this.saldos.find((s) => s.estacionId === estacionId || s.id === estacionId);
       if (saldoPorId) return saldoPorId;
     }
 
+    if (!estacionNombre || typeof estacionNombre !== 'string' || !estacionNombre.trim()) {
+      if (exigirExistencia) {
+        const err = new Error('SALDO_NO_CONFIGURADO: Debe especificar el nombre o ID de la estación para consultar su saldo prepago.');
+        (err as any).code = 'SALDO_NO_CONFIGURADO';
+        throw err;
+      }
+      return undefined;
+    }
+
     const estNorm = this.normalizarTexto(estacionNombre);
-    if (!estNorm) return this.saldos[0];
+    if (!estNorm) {
+      if (exigirExistencia) {
+        const err = new Error(`SALDO_NO_CONFIGURADO: Estación inválida "${estacionNombre}".`);
+        (err as any).code = 'SALDO_NO_CONFIGURADO';
+        throw err;
+      }
+      return undefined;
+    }
 
     // Coincidencia exacta o parcial por nombre de estación
-    let saldo = this.saldos.find((s) => {
+    const saldo = this.saldos.find((s) => {
       const sEstNorm = this.normalizarTexto(s.estacionNombre);
       return sEstNorm === estNorm || sEstNorm.includes(estNorm) || estNorm.includes(sEstNorm);
     });
 
     if (saldo) return saldo;
 
-    // Fallback: Primer saldo activo
-    return this.saldos.find((s) => s.activo) || this.saldos[0];
+    // 🔒 FASE 2: Eliminación de fallback silencioso que asignaba saldos de otras estaciones por error
+    if (exigirExistencia) {
+      const err = new Error(
+        `SALDO_NO_CONFIGURADO: No se encontró una cuenta de saldo prepago para la estación "${estacionNombre}". Registre la estación en el módulo de saldos prepago.`
+      );
+      (err as any).code = 'SALDO_NO_CONFIGURADO';
+      throw err;
+    }
+
+    return undefined;
   }
 
   public buscarSaldoPorEstacionYCombustible(estacionNombre: string, tipoCombustible?: string): SaldoEstacion | undefined {
@@ -2106,6 +2158,11 @@ class BaseDeDatosFlota {
     this.activeCargaLocks.add(lockKey);
 
     const saldoOriginalState = new Map<string, number>();
+    let originalVehiculoOdo: number | undefined;
+    let addedMovimientoId: string | undefined;
+    let addedCargaId: string | undefined;
+    let addedLecturaId: string | undefined;
+    let addedAuditLogId: string | undefined;
 
     try {
       const vehiculo = this.vehiculos.find((v) => v.id === vehiculoId);
@@ -2150,7 +2207,8 @@ class BaseDeDatosFlota {
         throw err;
       }
 
-      // Identificar saldo de la estación
+      // 🔒 FASE 2: Identificar saldo de la estación de forma explícita sin fallback silencioso
+      const nombreEstacion = extras?.estacion || estacionId || '';
       let saldo: SaldoEstacion | undefined;
       if (estacionId) {
         saldo = this.saldos.find(
@@ -2160,16 +2218,15 @@ class BaseDeDatosFlota {
             s.estacionNombre.toLowerCase() === estacionId.toLowerCase()
         );
       }
-      if (!saldo && extras?.estacion) {
-        saldo = this.saldos.find((s) => s.estacionNombre.toLowerCase().includes(String(extras.estacion).toLowerCase()));
-      }
-      if (!saldo) {
-        saldo = this.saldos.find((s) => s.activo) || this.saldos[0];
+      if (!saldo && nombreEstacion) {
+        saldo = this.buscarSaldoPorEstacion(nombreEstacion, undefined, false);
       }
 
       if (!saldo) {
-        const err = new Error('SALDO_INSUFICIENTE: No hay cuenta de saldo configurada para la estación.');
-        (err as any).code = 'SALDO_INSUFICIENTE';
+        const err = new Error(
+          `SALDO_NO_CONFIGURADO: No se encontró una cuenta de saldo prepago para la estación "${nombreEstacion}". Registre la estación en el módulo de saldos prepago.`
+        );
+        (err as any).code = 'SALDO_NO_CONFIGURADO';
         throw err;
       }
 
@@ -2208,6 +2265,7 @@ class BaseDeDatosFlota {
         notas: `Descuento atómico por registro de carga (${vehiculo.placa})`,
       };
       this.movimientosSaldo.unshift(movimiento);
+      addedMovimientoId = movimiento.id;
 
       // 5. Registrar la carga
       const kmRecorridos = odometroFinal - odometroInicio;
@@ -2241,6 +2299,7 @@ class BaseDeDatosFlota {
         rendimientoKmL,
         servicioDestino: saldo.estacionNombre,
         saldoPrepagoId: saldo.id,
+        saldoYaDescontado: true, // 🔒 FASE 2: Bandera contra doble descuento en validaciones posteriores
         estadoValidacion: 'PENDIENTE',
         fotoFacturaUrl:
           imagenBase64 ||
@@ -2269,10 +2328,11 @@ class BaseDeDatosFlota {
       };
 
       this.cargas.unshift(nuevaCarga);
+      addedCargaId = nuevaCarga.id;
       movimiento.registroCombustibleId = nuevaCarga.id;
 
       // 6. Registrar lectura de odómetro y actualizar vehículo
-      const odometroPrevioVehiculo = vehiculo.odometroActual;
+      originalVehiculoOdo = vehiculo.odometroActual;
       vehiculo.odometroActual = odometroFinal;
 
       const nuevaLectura: LecturaOdometro = {
@@ -2285,6 +2345,7 @@ class BaseDeDatosFlota {
         observaciones: `Lectura registrada en despacho atómico #${nuevaCarga.id}`,
       };
       this.lecturasOdometro.unshift(nuevaLectura);
+      addedLecturaId = nuevaLectura.id;
 
       // 7. Auditoría
       const auditRecord = {
@@ -2306,6 +2367,7 @@ class BaseDeDatosFlota {
         '127.0.0.1'
       );
       this.audit_logs.unshift(auditEntry);
+      addedAuditLogId = auditEntry.id;
 
       this.guardarDatos();
 
@@ -2318,12 +2380,32 @@ class BaseDeDatosFlota {
         audit: auditRecord,
       };
     } catch (error) {
-      // Revertir si saldo fue descontado
+      // 🔒 FASE 2: Reversión atómica y exhaustiva de todo cambio parcial
       if (saldoOriginalState.size > 0) {
         for (const [sId, original] of saldoOriginalState.entries()) {
           const s = this.saldos.find((sal) => sal.id === sId);
           if (s) s.saldoActual = original;
         }
+      }
+      if (addedMovimientoId) {
+        const idx = this.movimientosSaldo.findIndex((m) => m.id === addedMovimientoId);
+        if (idx !== -1) this.movimientosSaldo.splice(idx, 1);
+      }
+      if (addedCargaId) {
+        const idx = this.cargas.findIndex((c) => c.id === addedCargaId);
+        if (idx !== -1) this.cargas.splice(idx, 1);
+      }
+      if (addedLecturaId) {
+        const idx = this.lecturasOdometro.findIndex((l) => l.id === addedLecturaId);
+        if (idx !== -1) this.lecturasOdometro.splice(idx, 1);
+      }
+      if (addedAuditLogId) {
+        const idx = this.audit_logs.findIndex((a) => a.id === addedAuditLogId);
+        if (idx !== -1) this.audit_logs.splice(idx, 1);
+      }
+      if (originalVehiculoOdo !== undefined) {
+        const veh = this.vehiculos.find((v) => v.id === vehiculoId);
+        if (veh) veh.odometroActual = originalVehiculoOdo;
       }
       this.guardarDatos();
       throw error;

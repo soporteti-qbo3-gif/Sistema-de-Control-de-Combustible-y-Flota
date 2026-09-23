@@ -209,7 +209,7 @@ export const ReportesComparativas: React.FC = () => {
                   <Bar
                     dataKey="rendimientoTeorico"
                     name="Rendimiento Teórico"
-                    fill="#475569"
+                    fill="#2563EB"
                     radius={[4, 4, 0, 0]}
                   />
                   <Bar
@@ -297,8 +297,8 @@ export const ReportesComparativas: React.FC = () => {
           {metricaGrafico === 'rendimiento' && (
             <div className="flex flex-wrap items-center justify-center gap-3 text-[11px] pt-1 text-slate-600">
               <div className="flex items-center space-x-1.5">
-                <span className="w-2.5 h-2.5 rounded-xs bg-[#475569] inline-block" />
-                <span>Teórico Estándar</span>
+                <span className="w-2.5 h-2.5 rounded-xs bg-[#2563EB] inline-block" />
+                <span>Teórico Estándar (Azul)</span>
               </div>
               <div className="flex items-center space-x-1.5">
                 <span className="w-2.5 h-2.5 rounded-xs bg-[#059669] inline-block" />

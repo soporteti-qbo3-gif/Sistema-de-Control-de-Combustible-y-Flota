@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { SolicitudAutorizacion, Vehiculo } from '../../types';
+import { DigitalBarcode } from '../../components/DigitalBarcode';
 
 export const SolicitudesAutorizacion: React.FC = () => {
   const [solicitudes, setSolicitudes] = useState<SolicitudAutorizacion[]>([]);
@@ -357,15 +358,18 @@ export const SolicitudesAutorizacion: React.FC = () => {
                   </div>
 
                   {/* Acciones o Token Generado */}
-                  <div className="flex flex-col items-end justify-center space-y-2 lg:pl-4 lg:border-l lg:border-slate-200 min-w-[200px]">
+                  <div className="flex flex-col items-end justify-center space-y-2 lg:pl-4 lg:border-l lg:border-slate-200 min-w-[210px]">
                     {sol.codigoAutorizacion ? (
-                      <div className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-md space-y-1">
+                      <div className="w-full bg-slate-50 border border-slate-200 p-2.5 rounded-md space-y-2">
                         <div className="flex items-center justify-between">
-                          <span className="text-[10px] uppercase font-medium text-slate-500">Token Autorizado</span>
+                          <span className="text-[10px] uppercase font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 flex items-center space-x-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 inline-block" />
+                            <span>Código de Barras</span>
+                          </span>
                           <button
                             onClick={() => copiarAlPortapapeles(sol.codigoAutorizacion!)}
-                            className="text-slate-400 hover:text-slate-700"
-                            title="Copiar Token"
+                            className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                            title="Copiar Código"
                           >
                             {copiadoToken === sol.codigoAutorizacion ? (
                               <Check className="w-3.5 h-3.5 text-emerald-600" />
@@ -374,10 +378,20 @@ export const SolicitudesAutorizacion: React.FC = () => {
                             )}
                           </button>
                         </div>
-                        <div className="font-mono text-sm font-semibold text-slate-900 bg-white px-2 py-1 rounded border border-slate-200 text-center tracking-wider">
-                          {sol.codigoAutorizacion}
+
+                        {/* Código de barras visual con colores */}
+                        <div className="flex justify-center bg-white p-1 rounded border border-emerald-200 shadow-2xs">
+                          <DigitalBarcode
+                            code={sol.codigoAutorizacion}
+                            colorTheme={sol.estado === 'COMPLETADA' ? 'blue' : 'emerald'}
+                            size="sm"
+                            showText={true}
+                            subtext={`${sol.litrosSolicitados}L`}
+                            className="w-full border-none p-1 shadow-none"
+                          />
                         </div>
-                        <span className="text-[10px] text-slate-500 block text-center">
+
+                        <span className="text-[10px] text-slate-500 block text-center font-mono">
                           Aprobado por: <strong className="text-slate-700">{sol.aprobadoPor || 'Admin'}</strong>
                         </span>
                       </div>

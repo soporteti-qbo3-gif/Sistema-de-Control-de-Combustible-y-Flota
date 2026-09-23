@@ -22,6 +22,7 @@ import {
   DollarSign,
   TrendingUp,
   MessageSquare,
+  Barcode,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../services/api';
@@ -274,9 +275,10 @@ export const MisCargas: React.FC = () => {
                     <div className="flex items-center justify-between text-[11px] text-slate-600 bg-white p-2 rounded-md border border-slate-200">
                       <span>Estación: <strong className="text-slate-900">{carga.estacion}</strong></span>
                       {carga.codigoAutorizacion && (
-                        <span className="font-mono font-medium text-emerald-800">
-                          Token: {carga.codigoAutorizacion}
-                        </span>
+                        <div className="flex items-center space-x-1 font-mono font-medium text-emerald-800 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded">
+                          <Barcode className="w-3.5 h-3.5 text-emerald-600" />
+                          <span>{carga.codigoAutorizacion}</span>
+                        </div>
                       )}
                     </div>
 

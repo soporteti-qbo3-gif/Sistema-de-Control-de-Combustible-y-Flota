@@ -1,6 +1,6 @@
 /**
- * Barra de Navegación Inferior (Bottom Navigation) Mobile-First PWA
- * Diseñada para pulgar, con objetivos táctiles de 44px+ e insignias de estado
+ * Barra de Navegación Inferior (Mobile PWA)
+ * Diseño táctil sobrio con objetivos accesibles de 44px+ sin rebotes infantiles
  */
 
 import React from 'react';
@@ -12,7 +12,6 @@ import {
   CheckCircle2,
   KeyRound,
   LayoutDashboard,
-  Settings,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -41,22 +40,22 @@ export const BottomNav: React.FC<BottomNavProps> = ({
 
   const itemsConductor: NavItem[] = [
     { id: 'conductor-home', label: 'Inicio', icon: Home },
-    { id: 'conductor-registrar', label: 'Subir Docs', icon: FilePlus },
+    { id: 'conductor-registrar', label: 'Subir Carga', icon: FilePlus },
     { id: 'conductor-cargas', label: 'Historial', icon: History },
-    { id: 'conductor-vehiculo', label: 'Mi Unidad', icon: Truck },
+    { id: 'conductor-vehiculo', label: 'Vehículo', icon: Truck },
   ];
 
   const itemsAdmin: NavItem[] = [
     { id: 'admin-dashboard', label: 'Inicio', icon: LayoutDashboard },
     {
       id: 'admin-validacion',
-      label: 'Validar',
+      label: 'Auditoría',
       icon: CheckCircle2,
       badge: cargasPendientesCount,
     },
     {
       id: 'admin-solicitudes',
-      label: 'Solicitudes',
+      label: 'Tokens',
       icon: KeyRound,
       badge: solicitudesPendientesCount,
     },
@@ -68,7 +67,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   return (
     <nav
       id="mobile-bottom-nav"
-      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/85 backdrop-blur-2xl border-t border-black/[0.08] px-2 pt-1.5 pb-2 safe-area-pb transition-all"
+      className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-2 pt-1 pb-2 safe-area-pb"
       aria-label="Navegación Móvil Principal"
     >
       <div className="flex items-center justify-around h-12 max-w-md mx-auto">
@@ -81,22 +80,22 @@ export const BottomNav: React.FC<BottomNavProps> = ({
               key={item.id}
               id={`btn-bottom-nav-${item.id}`}
               onClick={() => setVistaActiva(item.id)}
-              className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] min-w-[44px] relative rounded-xl active:scale-90 transition-all ${
+              className={`flex-1 flex flex-col items-center justify-center h-full min-h-[44px] min-w-[44px] relative rounded-md transition-colors ${
                 isActive
-                  ? 'text-[#007AFF]'
-                  : 'text-slate-400 hover:text-slate-600'
+                  ? 'text-slate-900'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               <div className="relative flex flex-col items-center">
-                <Icon className={`w-5 h-5 transition-transform ${isActive ? 'stroke-[2.4px] scale-105 text-[#007AFF]' : 'stroke-[1.8px] text-slate-400'}`} />
+                <Icon className={`w-4 h-4 ${isActive ? 'stroke-[2.2px] text-slate-900' : 'stroke-[1.8px] text-slate-400'}`} />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1 -right-2.5 min-w-[16px] h-4 px-1 rounded-full bg-[#FF3B30] text-white text-[9px] font-bold flex items-center justify-center shadow-xs">
+                  <span className="absolute -top-1 -right-2.5 min-w-[15px] h-3.5 px-1 rounded bg-slate-900 text-white font-mono text-[9px] font-medium flex items-center justify-center">
                     {item.badge}
                   </span>
                 )}
                 <span
                   className={`text-[10px] mt-1 tracking-tight ${
-                    isActive ? 'text-[#007AFF] font-bold' : 'text-slate-500 font-medium'
+                    isActive ? 'text-slate-900 font-semibold' : 'text-slate-500 font-medium'
                   }`}
                 >
                   {item.label}
