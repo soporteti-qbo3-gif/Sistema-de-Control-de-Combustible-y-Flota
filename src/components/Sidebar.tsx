@@ -1,9 +1,9 @@
 /**
- * Barra Lateral de Navegación Empresarial
- * Estructura departamental por áreas operativas con tipografía sobria y sin elementos infantiles
+ * Barra Lateral de Navegación Empresarial - Estética SaaS Linear/Notion
+ * Fondo sutil e indicador visual lateral refinado para items activos
  */
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   LayoutDashboard,
   Truck,
@@ -14,9 +14,7 @@ import {
   BarChart3,
   Bell,
   Wallet,
-  FlaskConical,
   X,
-  Gauge,
   PlusCircle,
   History,
   Car,
@@ -37,14 +35,6 @@ interface SidebarProps {
   onToggleSidebar?: () => void;
 }
 
-interface MenuItem {
-  id: string;
-  label: string;
-  icon: React.ElementType;
-  badge?: number | null;
-  seccion?: string;
-}
-
 export const Sidebar: React.FC<SidebarProps> = ({
   vistaActiva,
   setVistaActiva,
@@ -57,6 +47,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const { usuario } = useAuth();
   const isAdmin = usuario?.rol === 'ADMIN';
+
+  // Soporte de accesibilidad: tecla Escape cierra menú en móvil
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && mobileMenuOpen && onCloseMobileMenu) {
+        onCloseMobileMenu();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen, onCloseMobileMenu]);
 
   const seccionesAdmin = [
     {
@@ -104,15 +105,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
           badge: null,
         },
         {
-          id: 'admin-mantenimientos',
-          label: 'Mantenimientos',
-          icon: Wrench,
+          id: 'admin-administradores',
+          label: 'Administradores',
+          icon: ShieldCheck,
           badge: null,
         },
         {
-          id: 'admin-administradores',
-          label: 'Accesos y Roles',
-          icon: ShieldCheck,
+          id: 'admin-mantenimientos',
+          label: 'Mantenimiento Preventivo',
+          icon: Wrench,
           badge: null,
         },
       ],
@@ -122,37 +123,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
       items: [
         {
           id: 'admin-reportes',
-          label: 'Reportes y Métricas',
+          label: 'Reportes & Métricas',
           icon: BarChart3,
           badge: null,
         },
         {
           id: 'centro-notificaciones',
-          label: 'Centro de Avisos',
+          label: 'Notificaciones',
           icon: Bell,
           badge: null,
         },
         {
           id: 'admin-configuracion',
-          label: 'Configuración',
+          label: 'Configuración Sistema',
           icon: Settings,
-          badge: null,
-        },
-        {
-          id: 'pruebas-unitarias',
-          label: 'Pruebas Unitarias',
-          icon: FlaskConical,
           badge: null,
         },
       ],
     },
   ];
 
-  const menuConductor: MenuItem[] = [
+  const menuConductor = [
     {
       id: 'conductor-home',
-      label: 'Cabina Operativa',
-      icon: Gauge,
+      label: 'Panel Conductor',
+      icon: LayoutDashboard,
       badge: null,
     },
     {
@@ -163,7 +158,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     },
     {
       id: 'conductor-cargas',
-      label: 'Mis Cargas Realizadas',
+      label: 'Mis Despachos',
       icon: History,
       badge: null,
     },
@@ -187,23 +182,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   const navContent = (
-    <div className="flex flex-col h-full bg-white text-slate-700 border-r border-slate-200 w-56 sm:w-60 select-none">
+    <div className="flex flex-col h-full bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 border-r border-slate-200/80 dark:border-slate-800/80 w-60 select-none transition-colors duration-150">
       {/* Header móvil */}
-      <div className="lg:hidden p-3 border-b border-slate-200 flex items-center justify-between">
-        <span className="font-semibold text-xs text-slate-900">Navegación</span>
+      <div className="lg:hidden p-3.5 border-b border-slate-200/80 dark:border-slate-800 flex items-center justify-between">
+        <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">Menú de Navegación</span>
         <button
           onClick={onCloseMobileMenu}
-          className="p-1 rounded text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+          className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer min-w-[36px] min-h-[36px] flex items-center justify-center"
+          aria-label="Cerrar menú"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Indicador de Rol */}
-      <div className="px-3.5 py-2.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+      <div className="px-4 py-2.5 border-b border-slate-100 dark:border-slate-800/60 flex items-center justify-between bg-slate-50/60 dark:bg-slate-950/40">
         <div className="flex items-center space-x-2">
-          <span className="w-2 h-2 rounded-full bg-slate-900" />
-          <span className="text-[10px] font-mono font-medium text-slate-500 uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400" />
+          <span className="text-[10px] font-mono font-semibold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
             {isAdmin ? 'Mando Central' : 'Conductor'}
           </span>
         </div>
@@ -211,7 +207,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {onToggleSidebar && (
           <button
             onClick={onToggleSidebar}
-            className="hidden lg:flex p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="hidden lg:flex p-1 rounded-md text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             title="Ocultar barra lateral"
           >
             <PanelLeftClose className="w-3.5 h-3.5" />
@@ -220,11 +216,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </div>
 
       {/* Lista de Enlaces */}
-      <nav className="flex-1 px-2.5 py-3 space-y-4 overflow-y-auto">
+      <nav className="flex-1 px-3 py-3.5 space-y-4 overflow-y-auto">
         {isAdmin ? (
           seccionesAdmin.map((sec) => (
             <div key={sec.titulo} className="space-y-1">
-              <span className="text-[10px] font-mono font-medium text-slate-500 uppercase tracking-wider px-2 block mb-1">
+              <span className="text-[10px] font-mono font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 block mb-1">
                 {sec.titulo}
               </span>
               {sec.items.map((item) => {
@@ -236,25 +232,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     key={item.id}
                     id={`sidebar-link-${item.id}`}
                     onClick={() => handleSelect(item.id)}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                       isActive
-                        ? 'bg-slate-900 text-white'
-                        : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+                        ? 'bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-l-2 border-indigo-600 dark:border-indigo-400 font-semibold shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/70 dark:hover:bg-slate-800/60'
                     }`}
                   >
-                    <div className="flex items-center space-x-2 truncate">
-                      <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                    <div className="flex items-center space-x-2.5 truncate">
+                      <Icon
+                        className={`w-4 h-4 flex-shrink-0 transition-colors ${
+                          isActive
+                            ? 'text-indigo-600 dark:text-indigo-400'
+                            : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600'
+                        }`}
+                      />
                       <span className="truncate">{item.label}</span>
                     </div>
 
                     {item.badge && (
-                      <span
-                        className={`text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded ml-1.5 ${
-                          isActive
-                            ? 'bg-slate-800 text-white'
-                            : 'bg-amber-100 text-amber-800 border border-amber-200'
-                        }`}
-                      >
+                      <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded-md ml-1.5 bg-amber-100 dark:bg-amber-950/70 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800/60">
                         {item.badge}
                       </span>
                     )}
@@ -265,7 +261,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           ))
         ) : (
           <div className="space-y-1">
-            <span className="text-[10px] font-mono font-medium text-slate-500 uppercase tracking-wider px-2 block mb-1">
+            <span className="text-[10px] font-mono font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider px-2.5 block mb-1">
               OPERACIÓN CONDUCTOR
             </span>
             {menuConductor.map((item) => {
@@ -277,14 +273,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   key={item.id}
                   id={`sidebar-link-${item.id}`}
                   onClick={() => handleSelect(item.id)}
-                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                     isActive
-                      ? 'bg-slate-900 text-white'
-                      : 'hover:bg-slate-100 text-slate-700 hover:text-slate-900'
+                      ? 'bg-indigo-50/80 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border-l-2 border-indigo-600 dark:border-indigo-400 font-semibold shadow-2xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100/70 dark:hover:bg-slate-800/60'
                   }`}
                 >
-                  <div className="flex items-center space-x-2 truncate">
-                    <Icon className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
+                  <div className="flex items-center space-x-2.5 truncate">
+                    <Icon
+                      className={`w-4 h-4 flex-shrink-0 ${
+                        isActive ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400 dark:text-slate-500'
+                      }`}
+                    />
                     <span className="truncate">{item.label}</span>
                   </div>
                 </button>
@@ -295,12 +295,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Pie de barra */}
-      <div className="p-3 border-t border-slate-200 text-[11px] text-slate-500 bg-slate-50/50">
+      <div className="p-3.5 border-t border-slate-200/80 dark:border-slate-800 text-[11px] text-slate-500 dark:text-slate-400 bg-slate-50/60 dark:bg-slate-950/40">
         <div className="flex items-center justify-between">
-          <span className="font-medium text-slate-700">FlotaControl</span>
-          <span className="text-slate-600 font-mono text-[10px] bg-white px-1.5 py-0.5 rounded border border-slate-200">
-            v2.4
-          </span>
+          <span className="font-semibold text-slate-800 dark:text-slate-200">FlotaControl</span>
+          <span className="font-mono text-[10px] text-slate-400">v2.6.2</span>
         </div>
       </div>
     </div>
@@ -308,23 +306,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <>
-      {/* Desktop Sidebar */}
+      {/* Menú Desktop (con colapso suave) */}
       <aside
-        className={`hidden lg:block h-[calc(100vh-3.25rem)] sticky top-13 flex-shrink-0 transition-all duration-150 ease-out ${
-          sidebarCollapsed ? 'w-0 overflow-hidden opacity-0 pointer-events-none' : 'w-52 sm:w-56 opacity-100'
+        id="app-desktop-sidebar"
+        className={`hidden lg:block h-[calc(100vh-3.5rem)] sticky top-14 transition-all duration-200 z-20 flex-shrink-0 ${
+          sidebarCollapsed ? 'w-0 overflow-hidden opacity-0 pointer-events-none' : 'w-60 opacity-100'
         }`}
       >
         {navContent}
       </aside>
 
-      {/* Mobile Drawer (Modal) */}
+      {/* Menú Móvil Modal / Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden fixed inset-0 z-50 flex">
           <div
-            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs transition-opacity"
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs transition-opacity"
             onClick={onCloseMobileMenu}
           />
-          <div className="relative flex-1 flex flex-col max-w-[260px] w-full bg-white z-50 shadow-xl border-r border-slate-200">
+          <div className="relative z-10 w-64 max-w-[85vw] h-full shadow-2xl animate-in slide-in-from-left duration-200">
             {navContent}
           </div>
         </div>

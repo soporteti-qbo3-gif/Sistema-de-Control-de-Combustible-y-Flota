@@ -1,27 +1,31 @@
 /**
  * Pantalla de Autenticación Central y Cambio Obligatorio de Contraseña
- * FlotaControl OS - Sistema de Control y Gestión de Combustible
+ * FlotaControl OS - Estilo SaaS Moderno (Linear/Notion) con Modo Oscuro y Skeleton
  */
 
 import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useTheme } from '../../context/ThemeContext';
 import { api } from '../../services/api';
 import {
-  Fuel,
+  Truck,
   Lock,
   Mail,
   Eye,
   EyeOff,
-  AlertCircle,
-  CheckCircle2,
   ShieldAlert,
   ArrowRight,
   LogOut,
   KeyRound,
+  Sun,
+  Moon,
+  CheckCircle2,
 } from 'lucide-react';
+import { Button, ErrorState } from '../../components/ui';
 
 export const LoginPage: React.FC = () => {
   const { usuario, login, logout, actualizarUsuarioActual } = useAuth();
+  const { isDark, toggleTheme } = useTheme();
 
   // Estados del Formulario de Login
   const [email, setEmail] = useState('');
@@ -60,10 +64,11 @@ export const LoginPage: React.FC = () => {
       setPasswordAnterior(password);
       await login(emailTrim, password);
     } catch (err: any) {
-      // Mensaje de error genérico para no permitir enumeración de cuentas ni vectores de ataque
-      setErrorLogin(err?.message === 'USUARIO_SUSPENDIDO'
-        ? 'Esta cuenta ha sido suspendida. Contacte al Administrador.'
-        : 'Credenciales inválidas. Por favor verifique sus datos.');
+      setErrorLogin(
+        err?.message === 'USUARIO_SUSPENDIDO'
+          ? 'Esta cuenta ha sido suspendida. Contacte al Administrador.'
+          : 'Credenciales inválidas. Por favor verifique sus datos.'
+      );
     } finally {
       setCargandoLogin(false);
     }
@@ -92,7 +97,6 @@ export const LoginPage: React.FC = () => {
       });
 
       setExitoCambio(true);
-      // Actualizar el estado del usuario para desbloquear el acceso a la app
       await actualizarUsuarioActual();
     } catch (err: any) {
       setErrorCambio(err.message || 'Error al actualizar la contraseña temporal.');
@@ -104,19 +108,35 @@ export const LoginPage: React.FC = () => {
   const debeCambiar = usuario?.debeCambiarPassword;
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center p-4 sm:p-6 text-slate-800">
-      <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-2xl shadow-xl overflow-hidden transition-all">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col justify-center items-center p-4 sm:p-6 text-slate-800 dark:text-slate-100 transition-colors duration-150">
+      {/* Botón flotante superior para cambio de tema */}
+      <div className="absolute top-4 right-4 sm:top-6 sm:right-6">
+        <button
+          onClick={toggleTheme}
+          className="p-2.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xs hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer min-w-[40px] min-h-[40px] flex items-center justify-center"
+          title={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+          aria-label="Alternar tema"
+        >
+          {isDark ? (
+            <Sun className="w-4 h-4 text-amber-400" />
+          ) : (
+            <Moon className="w-4 h-4 text-slate-700" />
+          )}
+        </button>
+      </div>
+
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800 rounded-2xl shadow-xs overflow-hidden transition-all">
         {/* Cabecera Corporativa de Flota */}
-        <div className="bg-slate-900 text-white px-6 py-6 border-b border-slate-800">
+        <div className="bg-slate-900 dark:bg-slate-950 text-white px-6 py-6 border-b border-slate-800/80">
           <div className="flex items-center space-x-3">
-            <div className="w-11 h-11 rounded-xl bg-slate-800 border border-slate-700 flex items-center justify-center text-amber-400 shadow-inner">
-              <Fuel className="w-6 h-6" />
+            <div className="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white shadow-xs">
+              <Truck className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white flex items-center space-x-2">
+              <h1 className="text-base font-bold tracking-tight text-white flex items-center space-x-2">
                 <span>FlotaControl OS</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700 uppercase">
-                  v2.6
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-indigo-950/80 text-indigo-300 border border-indigo-800/60 uppercase">
+                  v2.6.2
                 </span>
               </h1>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -127,46 +147,47 @@ export const LoginPage: React.FC = () => {
         </div>
 
         {/* Contenido Principal */}
-        <div className="p-6 sm:p-8">
+        <div className="p-6 sm:p-7">
           {debeCambiar ? (
             /* Vista de Cambio Obligatorio de Contraseña */
             <div>
-              <div className="flex items-start space-x-3 p-3.5 rounded-xl bg-amber-50 border border-amber-200 mb-6 text-amber-900">
-                <ShieldAlert className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex items-start space-x-3 p-3.5 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 mb-5 text-amber-900 dark:text-amber-200">
+                <ShieldAlert className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />
                 <div>
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                  <h2 className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">
                     Cambio Obligatorio de Contraseña
                   </h2>
-                  <p className="text-xs text-amber-700 mt-1">
+                  <p className="text-xs text-amber-700 dark:text-amber-400/90 mt-1 leading-relaxed">
                     Por seguridad operativa, debe reemplazar la clave temporal por una contraseña personal definitiva (mínimo 6 caracteres).
                   </p>
                 </div>
               </div>
 
               {/* Ficha del Usuario Activo */}
-              <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg mb-6 flex items-center justify-between text-xs">
+              <div className="p-3 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-800 rounded-lg mb-5 flex items-center justify-between text-xs">
                 <div>
-                  <p className="font-semibold text-slate-900">{usuario?.nombre}</p>
-                  <p className="text-slate-500 font-mono text-[11px]">{usuario?.email}</p>
+                  <p className="font-semibold text-slate-900 dark:text-slate-100">{usuario?.nombre}</p>
+                  <p className="text-slate-500 dark:text-slate-400 font-mono text-[11px]">{usuario?.email}</p>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-200 text-slate-700 font-semibold">
+                <span className="px-2 py-0.5 rounded text-[10px] font-mono uppercase bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold">
                   {usuario?.rol}
                 </span>
               </div>
 
               {errorCambio && (
-                <div
-                  id="error-cambio-password"
-                  className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center space-x-2"
-                >
-                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                  <span>{errorCambio}</span>
+                <div id="error-cambio-password" className="mb-4">
+                  <ErrorState
+                    title="Error al cambiar contraseña"
+                    message={errorCambio}
+                    onRetry={() => setErrorCambio(null)}
+                    retryLabel="Intentar nuevamente"
+                  />
                 </div>
               )}
 
               {exitoCambio && (
-                <div className="mb-5 p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs flex items-center space-x-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                <div className="mb-4 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 text-emerald-800 dark:text-emerald-300 text-xs flex items-center space-x-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
                   <span>Contraseña actualizada. Ingresando al sistema...</span>
                 </div>
               )}
@@ -176,7 +197,7 @@ export const LoginPage: React.FC = () => {
                 <div>
                   <label
                     htmlFor="password-anterior"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
                     Contraseña Temporal / Actual
                   </label>
@@ -188,7 +209,7 @@ export const LoginPage: React.FC = () => {
                       onChange={(e) => setPasswordAnterior(e.target.value)}
                       placeholder="Ingrese la contraseña temporal"
                       required
-                      className="w-full h-11 px-3 pl-10 text-sm border border-slate-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:border-slate-900 text-slate-900 transition-colors"
+                      className="w-full h-11 px-3 pl-10 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 text-slate-900 dark:text-slate-100 transition-colors"
                     />
                     <KeyRound className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   </div>
@@ -198,7 +219,7 @@ export const LoginPage: React.FC = () => {
                 <div>
                   <label
                     htmlFor="password-nuevo"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
                     Nueva Contraseña Personal <span className="text-slate-400 font-normal">(mín. 6 caracteres)</span>
                   </label>
@@ -211,13 +232,13 @@ export const LoginPage: React.FC = () => {
                       placeholder="Mínimo 6 caracteres"
                       minLength={6}
                       required
-                      className="w-full h-11 px-3 pl-10 pr-10 text-sm border border-slate-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:border-slate-900 text-slate-900 transition-colors"
+                      className="w-full h-11 px-3 pl-10 pr-10 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 text-slate-900 dark:text-slate-100 transition-colors"
                     />
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                     <button
                       type="button"
                       onClick={() => setShowPassNuevo(!showPassNuevo)}
-                      className="absolute right-1 top-1 bottom-1 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer min-h-[40px] focus:outline-hidden"
+                      className="absolute right-1 top-1 bottom-1 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer min-h-[40px] focus:outline-hidden"
                       aria-label={showPassNuevo ? 'Ocultar contraseña' : 'Ver contraseña'}
                     >
                       {showPassNuevo ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -229,7 +250,7 @@ export const LoginPage: React.FC = () => {
                 <div>
                   <label
                     htmlFor="password-confirm"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
                     Confirmar Nueva Contraseña
                   </label>
@@ -242,13 +263,13 @@ export const LoginPage: React.FC = () => {
                       placeholder="Repita la nueva contraseña"
                       minLength={6}
                       required
-                      className="w-full h-11 px-3 pl-10 pr-10 text-sm border border-slate-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:border-slate-900 text-slate-900 transition-colors"
+                      className="w-full h-11 px-3 pl-10 pr-10 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 text-slate-900 dark:text-slate-100 transition-colors"
                     />
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                     <button
                       type="button"
                       onClick={() => setShowPassConfirm(!showPassConfirm)}
-                      className="absolute right-1 top-1 bottom-1 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer min-h-[40px] focus:outline-hidden"
+                      className="absolute right-1 top-1 bottom-1 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer min-h-[40px] focus:outline-hidden"
                       aria-label={showPassConfirm ? 'Ocultar contraseña' : 'Ver contraseña'}
                     >
                       {showPassConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -257,28 +278,24 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 {/* Botón de Guardar y Confirmar */}
-                <button
+                <Button
                   id="btn-confirmar-cambio-password"
                   type="submit"
-                  disabled={cargandoCambio || exitoCambio}
-                  className="w-full h-11 min-h-[44px] mt-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm rounded-lg transition-colors flex items-center justify-center space-x-2 focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                  variant="primary"
+                  size="lg"
+                  loading={cargandoCambio}
+                  disabled={exitoCambio}
+                  className="w-full mt-2"
                 >
-                  {cargandoCambio ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Guardar y Acceder al Sistema</span>
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </>
-                  )}
-                </button>
+                  Guardar y Acceder al Sistema
+                </Button>
 
                 {/* Opción para Salir */}
                 <div className="pt-2 text-center">
                   <button
                     type="button"
                     onClick={() => logout()}
-                    className="inline-flex items-center space-x-1.5 text-xs text-slate-500 hover:text-slate-800 transition-colors p-2 cursor-pointer focus:outline-hidden rounded"
+                    className="inline-flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors p-2 cursor-pointer focus:outline-hidden rounded"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                     <span>Cerrar sesión y volver al login</span>
@@ -289,22 +306,23 @@ export const LoginPage: React.FC = () => {
           ) : (
             /* Vista Normal de Iniciar Sesión */
             <div>
-              <div className="mb-6">
-                <h2 className="text-base font-bold text-slate-900">
+              <div className="mb-5">
+                <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
                   Inicio de Sesión
                 </h2>
-                <p className="text-xs text-slate-500 mt-1">
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                   Ingrese sus credenciales de operador o administrador asignadas.
                 </p>
               </div>
 
               {errorLogin && (
-                <div
-                  id="error-login-message"
-                  className="mb-5 p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center space-x-2.5 animate-fadeIn"
-                >
-                  <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0" />
-                  <span className="font-medium">{errorLogin}</span>
+                <div id="error-login-message" className="mb-4">
+                  <ErrorState
+                    title="No se pudo iniciar sesión"
+                    message={errorLogin}
+                    onRetry={() => setErrorLogin(null)}
+                    retryLabel="Intentar nuevamente"
+                  />
                 </div>
               )}
 
@@ -313,7 +331,7 @@ export const LoginPage: React.FC = () => {
                 <div>
                   <label
                     htmlFor="login-email"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
                     Correo Electrónico
                   </label>
@@ -327,7 +345,7 @@ export const LoginPage: React.FC = () => {
                       placeholder="ejemplo@flota.com"
                       required
                       disabled={cargandoLogin}
-                      className="w-full h-11 px-3 pl-10 text-sm border border-slate-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:border-slate-900 text-slate-900 transition-colors disabled:bg-slate-50"
+                      className="w-full h-11 px-3 pl-10 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors disabled:opacity-60"
                     />
                     <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                   </div>
@@ -337,7 +355,7 @@ export const LoginPage: React.FC = () => {
                 <div>
                   <label
                     htmlFor="login-password"
-                    className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5"
                   >
                     Contraseña
                   </label>
@@ -351,13 +369,13 @@ export const LoginPage: React.FC = () => {
                       placeholder="••••••••••••"
                       required
                       disabled={cargandoLogin}
-                      className="w-full h-11 px-3 pl-10 pr-10 text-sm border border-slate-300 rounded-lg bg-white focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:border-slate-900 text-slate-900 transition-colors disabled:bg-slate-50"
+                      className="w-full h-11 px-3 pl-10 pr-10 text-sm border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-800/50 focus:outline-hidden focus:ring-2 focus:ring-indigo-600 dark:focus:ring-indigo-500 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 transition-colors disabled:opacity-60"
                     />
                     <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-1 top-1 bottom-1 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 cursor-pointer min-h-[40px] focus:outline-hidden"
+                      className="absolute right-1 top-1 bottom-1 px-3 flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 cursor-pointer min-h-[40px] focus:outline-hidden"
                       aria-label={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
                     >
                       {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -366,29 +384,26 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 {/* Botón de Enviar */}
-                <button
+                <Button
                   id="btn-login-submit"
                   type="submit"
-                  disabled={cargandoLogin}
-                  className="w-full h-11 min-h-[44px] mt-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm rounded-lg transition-colors flex items-center justify-center space-x-2 focus:outline-hidden focus:ring-2 focus:ring-slate-900 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer shadow-sm"
+                  variant="primary"
+                  size="lg"
+                  loading={cargandoLogin}
+                  className="w-full mt-2"
                 >
-                  {cargandoLogin ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      <span>Iniciar Sesión</span>
-                      <ArrowRight className="w-4 h-4 ml-1" />
-                    </>
-                  )}
-                </button>
+                  <span className="flex items-center gap-1.5">
+                    Iniciar Sesión <ArrowRight className="w-4 h-4" />
+                  </span>
+                </Button>
               </form>
             </div>
           )}
         </div>
 
         {/* Pie de Página Informativo */}
-        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 text-center">
-          <p className="text-[11px] text-slate-500">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-950/60 border-t border-slate-100 dark:border-slate-800/60 text-center">
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">
             Acceso restringido a personal y conductores autorizados de la empresa.
           </p>
         </div>

@@ -3,6 +3,35 @@ Todas las modificaciones notables en este proyecto serán documentadas en este a
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.7.0] - 2026-09-23
+
+### Rediseño Visual y Experiencia de Usuario (UI/UX - Estética SaaS Linear / Notion)
+- **Sistema de Tokens Semánticos Tailwind v4 (`src/index.css`):**
+  - Implementación de tokens estructurados con directiva `@theme` y `@custom-variant dark`: niveles semánticos de fondo (`canvas`, `canvas-subtle`, `canvas-muted`), superficie (`surface`, `surface-subtle`, `surface-muted`), bordes y texto.
+  - Paleta de acento de marca sobria basada en azul-índigo (`#4F46E5` / `#6366F1`) y tokens funcionales de estado (`success`, `warning`, `danger`).
+  - Mantenimiento estricto de tipografía: `'JetBrains Mono'` con `tabular-nums` para finanzas, odómetros y litros, y `'Plus Jakarta Sans'` para interfaz de usuario.
+  - Soporte de navegación accesible con contorno `focus-visible` sobrio en todos los interactivos.
+- **Componentes Base Compartidos (`src/components/ui/`):**
+  - `Button`: Variantes (`primary`, `secondary`, `ghost`, `danger`), tamaños con target táctil en móvil `>=44px`, estado de carga (`loading`) con spinner integrado y desactivación accesible.
+  - `Card` y subcomponentes (`CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`): Bordes sutiles, sombra suave y radio consistente.
+  - `Badge`: Variantes semánticas específicas del negocio (`PENDIENTE`, `APROBADA`, `APROBADO`, `VALIDADO`, `RECHAZADO`, `REQUIERE_REVISION`, `ANOMALIA`), con indicador visual y tipografía mono.
+  - `EmptyState`: Iconografía contenida, título, descripción y botón de acción opcional.
+  - `ErrorState`: Mensaje contextual de error y botón de acción "Reintentar".
+  - `Skeleton` y `CardSkeleton`: Efecto pulse con bordes redondeados para cargas de contenido, eliminando spinners bloqueantes indefinidos.
+  - `PageHeader`: Título principal, subtítulo, badges informativos y zona de acciones a la derecha.
+- **Modo Oscuro Integral y Persistencia:**
+  - Creación de `ThemeContext` con soporte de persistencia en `localStorage` (`'flota_theme'`), soporte de detección nativa de `prefers-color-scheme`, y alternancia mediante selector de sol/luna en Navbar y LoginPage.
+  - Paleta oscura refinada estilo Linear (fondos en `slate-950` y `slate-900`, evitando negro puro y manteniendo contraste WCAG).
+- **Actualización del Shell de la Aplicación:**
+  - `Navbar`: Cabecera estilizada con efecto blur, alternador sol/luna, dropdown de notificaciones y menú de cuenta de usuario con soporte de teclado.
+  - `Sidebar`: Navegación con ítem activo claro (fondo sutil e indicador visual lateral definido, sin gris plomizo) y diseño adaptable.
+  - `BottomNav`: Barra táctil PWA móvil con touch target `>=44px`, indicación visual activa y badges numéricos contrastantes.
+  - `LoginPage`: Rediseño completo con soporte de modo oscuro, inputs adaptados, botón primario con spinner integrado y manejo de errores mediante `ErrorState`.
+  - `NotFound`: Página 404 modernizada con componentes UI, conservando selectores de prueba.
+- **Accesibilidad y Cierre por Teclado:**
+  - Integración de cierre con tecla `Escape` en modales, drawer lateral móvil y menús dropdown.
+  - Cobertura de tests unitarios completa en `src/components/ui/ui-components.test.tsx` (10 tests específicos para componentes y hook de tema).
+
 ## [2.6.2] - 2026-09-23
 
 ### Seguridad en Autorización de Endpoints y Sesiones

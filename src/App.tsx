@@ -6,9 +6,11 @@
 import React, { useState, useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
+import { Skeleton, CardSkeleton } from './components/ui';
 
 // Vistas Administrativas
 import { AdminDashboard } from './views/admin/AdminDashboard';
@@ -101,13 +103,30 @@ const MainLayout: React.FC = () => {
     }
   }, [usuario]);
 
+  // Soporte de accesibilidad: tecla Escape cierra menús modales
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (mobileMenuOpen) setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [mobileMenuOpen]);
+
   if (cargando) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-slate-700">
-        <div className="text-center space-y-3">
-          <div className="w-8 h-8 border-2 border-slate-900 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-xs font-medium text-slate-500">Iniciando FlotaControl...</p>
+      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 flex flex-col justify-center max-w-4xl mx-auto space-y-4">
+        <div className="flex items-center justify-between pb-4 border-b border-slate-200 dark:border-slate-800">
+          <Skeleton className="h-7 w-48" />
+          <Skeleton className="h-9 w-24 rounded-lg" />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+          <CardSkeleton rows={3} />
+          <CardSkeleton rows={3} />
+          <CardSkeleton rows={3} />
+        </div>
+        <CardSkeleton rows={4} className="mt-2" />
       </div>
     );
   }
@@ -173,7 +192,7 @@ const MainLayout: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans antialiased selection:bg-slate-900 selection:text-white relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col font-sans antialiased selection:bg-indigo-600 selection:text-white relative transition-colors duration-150">
       {/* Header Fijo con Top Bar Contract */}
       <Navbar
         vistaActiva={vistaActiva}
@@ -208,10 +227,10 @@ const MainLayout: React.FC = () => {
           <button
             id="btn-floating-open-sidebar"
             onClick={() => setSidebarCollapsed(false)}
-            className="hidden lg:flex fixed left-5 bottom-6 z-30 items-center space-x-2 bg-slate-900 text-white hover:bg-slate-800 text-xs font-medium px-3.5 py-2 rounded-md shadow-md border border-slate-700 transition-colors"
+            className="hidden lg:flex fixed left-5 bottom-6 z-30 items-center space-x-2 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs font-medium px-3.5 py-2.5 rounded-lg shadow-md border border-slate-200 dark:border-slate-800 transition-colors cursor-pointer"
             title="Desplegar menú lateral"
           >
-            <PanelLeftOpen className="w-4 h-4 text-slate-300" />
+            <PanelLeftOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
             <span>Desplegar Menú</span>
           </button>
         )}
@@ -231,9 +250,11 @@ const MainLayout: React.FC = () => {
 export function App() {
   return (
     <ErrorBoundary>
-      <AuthProvider>
-        <MainLayout />
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <MainLayout />
+        </AuthProvider>
+      </ThemeProvider>
     </ErrorBoundary>
   );
 }

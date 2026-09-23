@@ -1,54 +1,169 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-canvas: var(--color-canvas);
+  --color-canvas-subtle: var(--color-canvas-subtle);
+  --color-canvas-muted: var(--color-canvas-muted);
+
+  --color-surface: var(--color-surface);
+  --color-surface-subtle: var(--color-surface-subtle);
+  --color-surface-muted: var(--color-surface-muted);
+
+  --color-border: var(--color-border);
+  --color-border-subtle: var(--color-border-subtle);
+  --color-border-hover: var(--color-border-hover);
+
+  --color-text-main: var(--color-text-main);
+  --color-text-muted: var(--color-text-muted);
+  --color-text-subtle: var(--color-text-subtle);
+
+  --color-brand: var(--color-brand);
+  --color-brand-hover: var(--color-brand-hover);
+  --color-brand-subtle: var(--color-brand-subtle);
+  --color-brand-text: var(--color-brand-text);
+
+  --color-success: var(--color-success);
+  --color-success-subtle: var(--color-success-subtle);
+  --color-success-text: var(--color-success-text);
+
+  --color-warning: var(--color-warning);
+  --color-warning-subtle: var(--color-warning-subtle);
+  --color-warning-text: var(--color-warning-text);
+
+  --color-danger: var(--color-danger);
+  --color-danger-subtle: var(--color-danger-subtle);
+  --color-danger-text: var(--color-danger-text);
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+}
+
+:root {
+  /* Niveles de Fondo (Canvas) */
+  --color-canvas: #F8FAFC;
+  --color-canvas-subtle: #F1F5F9;
+  --color-canvas-muted: #E2E8F0;
+
+  /* Niveles de Superficie */
+  --color-surface: #FFFFFF;
+  --color-surface-subtle: #F8FAFC;
+  --color-surface-muted: #F1F5F9;
+
+  /* Niveles de Borde */
+  --color-border: #E2E8F0;
+  --color-border-subtle: #F1F5F9;
+  --color-border-hover: #CBD5E1;
+
+  /* Niveles de Texto */
+  --color-text-main: #0F172A;
+  --color-text-muted: #475569;
+  --color-text-subtle: #94A3B8;
+
+  /* Color de Acento de Marca (Linear Indigo #4F46E5) */
+  --color-brand: #4F46E5;
+  --color-brand-hover: #4338CA;
+  --color-brand-subtle: #EEF2FF;
+  --color-brand-text: #3730A3;
+
+  /* Semánticos */
+  --color-success: #10B981;
+  --color-success-subtle: #ECFDF5;
+  --color-success-text: #065F46;
+
+  --color-warning: #F59E0B;
+  --color-warning-subtle: #FFFBEB;
+  --color-warning-text: #92400E;
+
+  --color-danger: #EF4444;
+  --color-danger-subtle: #FEF2F2;
+  --color-danger-text: #991B1B;
+
+  /* Compatibilidad con variables legacy */
+  --slate-900: #0F172A;
+  --slate-800: #1E293B;
+  --slate-700: #334155;
+  --slate-600: #475569;
+  --slate-500: #64748B;
+  --slate-400: #94A3B8;
+  --slate-300: #CBD5E1;
+  --slate-200: #E2E8F0;
+  --slate-100: #F1F5F9;
+  --slate-50: #F8FAFC;
+}
+
+.dark {
+  /* Modo Oscuro Refinado (estilo Linear/Notion: fondos slate-950/900, no negro puro) */
+  --color-canvas: #090D16;
+  --color-canvas-subtle: #0F172A;
+  --color-canvas-muted: #1E293B;
+
+  --color-surface: #0F172A;
+  --color-surface-subtle: #1E293B;
+  --color-surface-muted: #334155;
+
+  --color-border: #1E293B;
+  --color-border-subtle: #162032;
+  --color-border-hover: #334155;
+
+  --color-text-main: #F8FAFC;
+  --color-text-muted: #94A3B8;
+  --color-text-subtle: #64748B;
+
+  --color-brand: #6366F1;
+  --color-brand-hover: #4F46E5;
+  --color-brand-subtle: rgba(99, 102, 241, 0.15);
+  --color-brand-text: #C7D2FE;
+
+  --color-success: #10B981;
+  --color-success-subtle: rgba(16, 185, 129, 0.15);
+  --color-success-text: #6EE7B7;
+
+  --color-warning: #F59E0B;
+  --color-warning-subtle: rgba(245, 158, 11, 0.15);
+  --color-warning-text: #FCD34D;
+
+  --color-danger: #EF4444;
+  --color-danger-subtle: rgba(239, 68, 68, 0.15);
+  --color-danger-text: #FCA5A5;
+
+  /* Compatibilidad con variables legacy en modo oscuro */
+  --slate-900: #F8FAFC;
+  --slate-800: #F1F5F9;
+  --slate-700: #CBD5E1;
+  --slate-600: #94A3B8;
+  --slate-500: #64748B;
+  --slate-400: #475569;
+  --slate-300: #334155;
+  --slate-200: #1E293B;
+  --slate-100: #0F172A;
+  --slate-50: #090D16;
+}
+
 @layer base {
-  :root {
-    /* Enterprise Design System Tokens */
-    --color-canvas: #F8FAFC;
-    --color-surface: #FFFFFF;
-    --color-surface-subtle: #F1F5F9;
-    --color-border: #E2E8F0;
-    --color-border-subtle: #F1F5F9;
-
-    /* Slate Neutral Scale */
-    --slate-900: #0F172A;
-    --slate-800: #1E293B;
-    --slate-700: #334155;
-    --slate-600: #475569;
-    --slate-500: #64748B;
-    --slate-400: #94A3B8;
-    --slate-300: #CBD5E1;
-    --slate-200: #E2E8F0;
-    --slate-100: #F1F5F9;
-    --slate-50: #F8FAFC;
-
-    /* Semantic Data State (Sober & Clear, strictly for states) */
-    --color-primary: #0F172A;
-    --color-accent: #2563EB;
-    --color-success: #059669;
-    --color-warning: #D97706;
-    --color-danger: #DC2626;
-
-    /* Industrial & Geometric Radii */
-    --radius-sm: 4px;
-    --radius-md: 6px;
-    --radius-lg: 8px;
-    --radius-xl: 12px;
+  * {
+    border-color: var(--color-border);
   }
 
-  * {
-    border-color: #E2E8F0;
+  html {
+    color-scheme: light dark;
   }
 
   body {
     background-color: var(--color-canvas);
-    color: var(--slate-900);
+    color: var(--color-text-main);
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     letter-spacing: -0.011em;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* All numbers in data, tables, dashboards and metrics enforce tabular figures */
+  /* Números tabulares para finanzas, odómetros, litros y métricas */
   .tabular-nums,
   [data-tabular="true"],
   .font-mono {
@@ -57,13 +172,13 @@
     letter-spacing: -0.02em;
   }
 
-  /* Enterprise Subtle Focus Ring */
+  /* Anillo de foco accesible y visible */
   :focus-visible {
-    outline: 2px solid #0F172A;
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
   }
 
-  /* Clean Minimalist Scrollbars */
+  /* Scrollbar sutil y moderno */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -78,20 +193,28 @@
     border-radius: 4px;
   }
 
+  .dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+  }
+
   ::-webkit-scrollbar-thumb:hover {
     background: #94A3B8;
   }
+
+  .dark ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
 }
 
-/* Professional Tactile Feedback (Subtle & Crisp, no rubber bounce) */
+/* Feedback táctil interactivo */
 .press-feedback {
-  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
+  transition: background-color 0.12s ease, border-color 0.12s ease, opacity 0.12s ease, transform 0.08s ease;
 }
 .press-feedback:active {
   opacity: 0.92;
+  transform: scale(0.99);
 }
 
-/* Legacy alias for backwards compatibility during refactor */
 .apple-press-feedback {
   transition: opacity 0.12s ease, background-color 0.12s ease;
 }
@@ -99,23 +222,23 @@
   opacity: 0.92;
 }
 
-/* Clean Card Utility */
+/* Utilidades de tarjeta premium estilo SaaS */
 .enterprise-card {
-  background-color: #FFFFFF;
-  border-radius: 8px;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04), 0 1px 2px -1px rgba(0, 0, 0, 0.02);
 }
 
 .enterprise-card-interactive {
-  background-color: #FFFFFF;
-  border-radius: 8px;
-  border: 1px solid #E2E8F0;
-  box-shadow: 0 1px 2px 0 rgba(15, 23, 42, 0.04);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  background-color: var(--color-surface);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease;
 }
 
 .enterprise-card-interactive:hover {
-  border-color: #CBD5E1;
-  box-shadow: 0 2px 4px -1px rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  border-color: var(--color-border-hover);
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
 }
