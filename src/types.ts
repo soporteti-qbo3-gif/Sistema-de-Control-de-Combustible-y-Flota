@@ -8,6 +8,7 @@ export interface Usuario {
   esAdminPrincipal?: boolean;
   debeCambiarPassword?: boolean;
   tempPassword?: string;
+  tempPasswordExpiracion?: string;
   telefonoContacto: string;
   telefonoWhatsapp?: string;
   licencia?: string;
@@ -92,7 +93,6 @@ export interface DatosExtraidosIA {
   lucesAdvertenciaTablero?: string[];
   esDuplicado?: boolean;
   duplicadoDetalle?: string;
-  esSimulado?: boolean;
 }
 
 export interface CargaCombustible {
@@ -120,15 +120,11 @@ export interface CargaCombustible {
   servicioDestino?: string;
   saldoPrepagoId?: string;
   metodoPago?: string;
-  saldoYaDescontado?: boolean;
   estadoValidacion: 'PENDIENTE' | 'VALIDADO' | 'RECHAZADO' | 'REQUIERE_REVISION';
   validadoPor?: string;
   fechaValidacion?: string;
   notasValidacion?: string;
   notaConductor?: string;
-  requiereRevision?: boolean;
-  esSimulado?: boolean;
-  confirmarDatosSimulados?: boolean;
   fotoFacturaUrl?: string;
   fotoOdometroUrl?: string;
   datosIA?: DatosExtraidosIA;

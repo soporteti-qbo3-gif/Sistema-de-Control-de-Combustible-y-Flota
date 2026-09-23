@@ -37,6 +37,7 @@ cp .env.example .env
 | `PORT` | Numérico | Servidor | Puerto de escucha para el servidor Express y producción. | `3000` |
 | `VITE_API_URL` | URL | Cliente/Vite | URL base de la API consumida por el cliente frontend. | `http://localhost:3000/api` |
 | `VITE_SITE_URL` | URL | Cliente/Vite | URL canónica del sitio para resolución de hosts y metadatos. | `http://localhost:3000` |
+| `ADMIN_SEED_PASSWORD` | Secreto | Servidor | Contraseña inicial para el administrador principal en el primer arranque. Si se omite, se genera aleatoria y se imprime en consola. | *(Opcional / Aleatoria)* |
 | `GEMINI_API_KEY` | Secreto | **Servidor (Exclusivo)** | Clave de API de Google AI Studio Gemini. **NUNCA exponer en cliente**. | *(Requerido para IA)* |
 
 ---
@@ -54,6 +55,20 @@ Inicia el servidor backend Express con recarga en caliente y middleware Vite:
 npm run dev
 ```
 Accede a la aplicación en: [http://localhost:3000](http://localhost:3000)
+
+### 🔐 Obtención de la Contraseña Inicial del Administrador
+Durante el primer arranque del servidor (inicialización de base de datos):
+1. **Con variable de entorno:** Si defines `ADMIN_SEED_PASSWORD` en `.env`, se utilizará dicho valor para `admin@flota.com`.
+2. **Generación automática segura:** Si dejas `ADMIN_SEED_PASSWORD` vacía o no la defines, el servidor genera automáticamente una clave temporal aleatoria segura (`crypto.randomBytes`) y la imprime **una única vez** en la terminal:
+   ```text
+   ================================================================
+   🔑 [SEGURIDAD] CONTRASEÑA INICIAL DEL ADMINISTRADOR PRINCIPAL
+   Usuario: admin@flota.com
+   Contraseña Temporal: <clave-generada>
+   AVISO: Esta contraseña es temporal. Cámbiala en el primer ingreso.
+   ================================================================
+   ```
+3. **Primer Ingreso Obligatorio:** Al abrir la URL, la aplicación muestra siempre la pantalla de login. Tras ingresar con la contraseña temporal, el sistema exige inmediatamente el cambio por una clave personal definitiva (mínimo 6 caracteres) para acceder al panel operativo.
 
 ### 3. Verificación de Calidad y Linter
 Ejecuta la validación de tipos TypeScript y las reglas de ESLint:

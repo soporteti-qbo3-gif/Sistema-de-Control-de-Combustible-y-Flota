@@ -4,9 +4,8 @@ export interface Usuario {
   id: string;
   email: string;
   passwordHash?: string;
-  tempPasswordHash?: string;
-  tempPasswordExpira?: string;
   tempPassword?: string;
+  tempPasswordExpiracion?: string;
   nombre: string;
   rol: UserRole;
   esAdminPrincipal?: boolean;
@@ -94,7 +93,6 @@ export interface DatosExtraidosIA {
   lucesAdvertenciaTablero?: string[];
   esDuplicado?: boolean;
   duplicadoDetalle?: string;
-  esSimulado?: boolean;
 }
 
 export interface CargaCombustible {
@@ -123,16 +121,12 @@ export interface CargaCombustible {
   servicioDestino?: string;
   saldoPrepagoId?: string;
   metodoPago?: string;
-  saldoYaDescontado?: boolean;
   // Validación y Auditoría
   estadoValidacion: 'PENDIENTE' | 'VALIDADO' | 'RECHAZADO' | 'REQUIERE_REVISION';
   validadoPor?: string;
   fechaValidacion?: string;
   notasValidacion?: string;
   notaConductor?: string;
-  requiereRevision?: boolean;
-  esSimulado?: boolean;
-  confirmarDatosSimulados?: boolean;
   // Imágenes
   fotoFacturaUrl?: string;
   fotoOdometroUrl?: string;

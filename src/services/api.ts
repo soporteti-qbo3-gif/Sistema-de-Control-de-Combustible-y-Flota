@@ -38,11 +38,11 @@ async function customFetch(input: RequestInfo | URL, init?: RequestInit): Promis
   const res = await window.fetch(input, init);
 
   const urlStr = typeof input === 'string' ? input : input.toString();
-  // 🔒 SEGURIDAD (1.1): Cuando el backend devuelva 401, limpiar tokens y notificar cierre de sesión
+  // Si devuelve 401 y no es la petición de login, limpiar credenciales expiradas
   if (res.status === 401 && !urlStr.includes('/auth/login')) {
     localStorage.removeItem('flota_token');
     localStorage.removeItem('flota_user_email');
-    window.dispatchEvent(new CustomEvent('flota_auth_logout'));
+    window.dispatchEvent(new CustomEvent('flota_auth_expired'));
   }
 
   return res;
@@ -66,8 +66,8 @@ async function handleResponse<T>(res: Response): Promise<T> {
 
 export const api = {
   // Autenticación
-  async login(email: string, password?: string): Promise<{ token: string; usuario: Usuario }> {
-    const res = await fetch(`${API_BASE}/auth/login`, {
+  async login(email: string, password: string): Promise<{ token: string; usuario: Usuario }> {
+    const res = await window.fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password }),
@@ -997,7 +997,6 @@ export const api = {
     const res = await fetch(`${API_BASE}/reset-demo`, {
       method: 'POST',
       headers: getAuthHeaders(),
-      body: JSON.stringify({ confirmacion: 'REINICIAR_TODO_CONFIRMADO' }),
     });
     return handleResponse(res);
   },

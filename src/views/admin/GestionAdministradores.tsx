@@ -92,7 +92,7 @@ export const GestionAdministradores: React.FC = () => {
 
   const abrirCrear = () => {
     // Generar clave temporal aleatoria fácil de comunicar
-    const passSugerido = `FlotaAdmin#${Math.floor(1000 + Math.random() * 9000)}`;
+    const passSugerido = `ClaveAdmin#${Math.floor(1000 + Math.random() * 9000)}`;
     setFormData({
       nombre: '',
       email: '',

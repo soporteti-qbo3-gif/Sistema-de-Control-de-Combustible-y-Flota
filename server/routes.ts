@@ -20,7 +20,6 @@ import {
   requiereAdmin,
   requiereAdminPrincipal,
   verificarPropiedadRecurso, // 🔒 SEGURIDAD: Control de acceso para mitigación de IDOR
-  toPublicUser,
   AuthenticatedRequest,
 } from './auth';
 import { extraerDatosComprobanteYOdometro } from './ia_extractor';
@@ -110,21 +109,15 @@ export function validarMimeTypeBase64(base64Str?: string): { valido: boolean; er
 apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   const { email, password } = req.body;
 
-  if (!email || typeof email !== 'string') {
-    res.status(400).json({ error: 'El correo electrónico es requerido.' });
-    return;
-  }
-
-  // 🔒 SEGURIDAD (1.1): Validación estricta y obligatoria de contraseña (no se permite bypass de contraseña)
-  if (!password || typeof password !== 'string' || !password.trim()) {
-    res.status(400).json({ error: 'La contraseña es requerida para iniciar sesión.' });
+  if (!email || !password) {
+    res.status(401).json({ error: 'Credenciales inválidas.' });
     return;
   }
 
   const usuario = db.usuarios.find((u) => u.email.toLowerCase() === email.toLowerCase().trim());
 
   if (!usuario) {
-    res.status(401).json({ error: 'Credenciales inválidas. Usuario no registrado en la flota.' });
+    res.status(401).json({ error: 'Credenciales inválidas.' });
     return;
   }
 
@@ -139,7 +132,7 @@ apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   // 🔒 SEGURIDAD: Validación de credenciales mediante bcrypt.compare() para prevenir ataques de temporización
   const esPasswordValida = await db.validarPassword(usuario, password);
   if (!esPasswordValida) {
-    res.status(401).json({ error: 'Credenciales inválidas. Contraseña incorrecta.' });
+    res.status(401).json({ error: 'Credenciales inválidas.' });
     return;
   }
 
@@ -153,8 +146,18 @@ apiRouter.post('/auth/login', loginRateLimiter, async (req, res) => {
   res.json({
     token,
     usuario: {
-      ...toPublicUser(usuario),
+      id: usuario.id,
+      email: usuario.email,
+      nombre: usuario.nombre,
+      rol: usuario.rol,
+      esAdminPrincipal: !!usuario.esAdminPrincipal,
+      debeCambiarPassword: !!usuario.debeCambiarPassword,
+      telefonoContacto: usuario.telefonoContacto,
+      telefonoWhatsapp: usuario.telefonoContacto,
+      licencia: usuario.licencia,
+      vehiculoAsignadoId: usuario.vehiculoAsignadoId,
       vehiculoAsignado,
+      activo: usuario.activo,
     },
   });
 });
@@ -171,22 +174,18 @@ apiRouter.get('/auth/me', middlewareAutenticacion, (req: AuthenticatedRequest, r
     : undefined;
 
   res.json({
-    ...toPublicUser(usuario),
+    id: usuario.id,
+    email: usuario.email,
+    nombre: usuario.nombre,
+    rol: usuario.rol,
+    esAdminPrincipal: !!usuario.esAdminPrincipal,
+    debeCambiarPassword: !!usuario.debeCambiarPassword,
+    telefonoContacto: usuario.telefonoContacto,
+    telefonoWhatsapp: usuario.telefonoContacto,
+    licencia: usuario.licencia,
+    vehiculoAsignadoId: usuario.vehiculoAsignadoId,
     vehiculoAsignado,
-  });
-});
-
-// 🔒 SEGURIDAD: Renovación segura de token JWT con usuario autenticado activo
-apiRouter.post('/auth/refresh', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
-  const usuario = db.usuarios.find((u) => u.id === req.user?.userId);
-  if (!usuario || !usuario.activo) {
-    res.status(401).json({ error: 'Usuario no encontrado o inactivo.' });
-    return;
-  }
-  const token = generarToken(usuario);
-  res.json({
-    token,
-    usuario: toPublicUser(usuario),
+    activo: usuario.activo,
   });
 });
 
@@ -208,10 +207,7 @@ apiRouter.post('/auth/cambiar-password', middlewareAutenticacion, async (req: Au
       forzarSinAnterior: req.user?.debeCambiarPassword,
     });
 
-    res.json({
-      ...resultado,
-      usuario: toPublicUser(resultado.usuario),
-    });
+    res.json(resultado);
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al cambiar la contraseña.' });
   }
@@ -236,7 +232,7 @@ apiRouter.get('/usuarios', middlewareAutenticacion, requiereAdmin, (req: Authent
   }
 
   const conDetalles = lista.map((u) => ({
-    ...toPublicUser(u),
+    ...u,
     vehiculoAsignado: u.vehiculoAsignadoId ? db.vehiculos.find((v) => v.id === u.vehiculoAsignadoId) : undefined,
   }));
 
@@ -258,7 +254,7 @@ apiRouter.post('/usuarios/admin', middlewareAutenticacion, requiereAdminPrincipa
 
     res.status(201).json({
       message: 'Administrador creado exitosamente. Se ha generado su contraseña temporal y deberá cambiarla al iniciar sesión.',
-      usuario: toPublicUser(nuevoAdmin),
+      usuario: nuevoAdmin,
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al crear administrador.' });
@@ -282,7 +278,7 @@ apiRouter.post('/usuarios/conductor', middlewareAutenticacion, requiereAdmin, as
 
     res.status(201).json({
       message: 'Conductor creado exitosamente. Se ha establecido la contraseña temporal.',
-      usuario: toPublicUser(nuevoConductor),
+      usuario: nuevoConductor,
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al crear conductor.' });
@@ -317,7 +313,7 @@ apiRouter.put('/usuarios/:id', middlewareAutenticacion, requiereAdmin, (req: Aut
 
     res.json({
       message: 'Usuario actualizado exitosamente.',
-      usuario: toPublicUser(usuarioActualizado),
+      usuario: usuarioActualizado,
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al actualizar usuario.' });
@@ -354,7 +350,7 @@ apiRouter.put('/usuarios/:id/suspender', middlewareAutenticacion, requiereAdmin,
   usuario.activo = false;
   res.json({
     message: `${usuario.rol === 'ADMIN' ? 'Administrador' : 'Conductor'} suspendido exitosamente. No podrá iniciar sesión ni registrar operaciones.`,
-    usuario: toPublicUser(usuario),
+    usuario,
   });
 });
 
@@ -378,7 +374,7 @@ apiRouter.put('/usuarios/:id/activar', middlewareAutenticacion, requiereAdmin, (
   usuario.activo = true;
   res.json({
     message: 'Usuario reactivado exitosamente.',
-    usuario: toPublicUser(usuario),
+    usuario,
   });
 });
 
@@ -594,9 +590,8 @@ apiRouter.post('/vehiculos/reset-kilometraje', middlewareAutenticacion, requiere
     v.odometroActual = 0;
     v.ultimoMantenimientoKm = 0;
   });
-  // 🔒 FASE 2: Vaciado seguro de arrays para preservar proxies reactivos de auto-guardado
-  db.vaciarCargas();
-  db.vaciarSolicitudes();
+  db.cargas = [];
+  db.solicitudes = [];
   res.json({ message: 'Kilometraje y registros de combustible de todos los vehículos restablecidos a 0 con éxito.', vehiculos: db.vehiculos });
 });
 
@@ -650,14 +645,14 @@ apiRouter.get('/conductores', middlewareAutenticacion, (req: AuthenticatedReques
   const conductores = db.usuarios
     .filter((u) => u.rol === 'CONDUCTOR')
     .map((c) => ({
-      ...toPublicUser(c),
+      ...c,
       vehiculoAsignado: db.vehiculos.find((v) => v.id === c.vehiculoAsignadoId),
     }));
   res.json(conductores);
 });
 
-apiRouter.post('/conductores', middlewareAutenticacion, requiereAdmin, async (req: AuthenticatedRequest, res: Response) => {
-  const { nombre, email, telefonoContacto, telefonoWhatsapp, licencia, vehiculoAsignadoId, tempPassword, activo } = req.body;
+apiRouter.post('/conductores', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
+  const { nombre, email, telefonoContacto, telefonoWhatsapp, licencia, vehiculoAsignadoId } = req.body;
   const tel = telefonoContacto || telefonoWhatsapp;
 
   if (!nombre || !email || !tel) {
@@ -665,21 +660,34 @@ apiRouter.post('/conductores', middlewareAutenticacion, requiereAdmin, async (re
     return;
   }
 
-  try {
-    const nuevoConductor = await db.crearConductor({
-      nombre,
-      email,
-      telefonoContacto: tel,
-      licencia,
-      vehiculoAsignadoId,
-      tempPassword,
-      activo: activo !== undefined ? activo : true,
-    });
-
-    res.status(201).json(toPublicUser(nuevoConductor));
-  } catch (error: any) {
-    res.status(400).json({ error: error.message || 'Error al crear conductor.' });
+  if (db.usuarios.some((u) => u.email.toLowerCase() === email.toLowerCase())) {
+    res.status(400).json({ error: 'Ya existe un usuario con ese correo electrónico.' });
+    return;
   }
+
+  const nuevoConductor: Usuario = {
+    id: `usr-cond-${Date.now()}`,
+    nombre: nombre.trim(),
+    email: email.toLowerCase().trim(),
+    rol: 'CONDUCTOR',
+    telefonoContacto: tel.trim(),
+    telefonoWhatsapp: tel.trim(),
+    licencia: licencia?.trim(),
+    vehiculoAsignadoId,
+    activo: true,
+  };
+
+  db.usuarios.push(nuevoConductor);
+
+  if (vehiculoAsignadoId) {
+    const veh = db.vehiculos.find((v) => v.id === vehiculoAsignadoId);
+    if (veh) {
+      veh.conductorId = nuevoConductor.id;
+      veh.conductorNombre = nuevoConductor.nombre;
+    }
+  }
+
+  res.status(201).json(nuevoConductor);
 });
 
 apiRouter.put('/conductores/:id', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
@@ -723,7 +731,7 @@ apiRouter.put('/conductores/:id', middlewareAutenticacion, requiereAdmin, (req: 
     }
   }
 
-  res.json(toPublicUser(db.usuarios[index]));
+  res.json(db.usuarios[index]);
 });
 
 // ==========================================
@@ -1225,19 +1233,6 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
     return;
   }
 
-  // 🔒 SEGURIDAD (1.7): Si los datos de IA provienen de simulación o fallback, NO persistir automáticamente:
-  // exigir confirmación explícita del conductor (campo confirmarDatosSimulados) y marcar la carga con requiereRevision = true
-  const esDatoSimulado = datosIA?.esSimulado === true;
-  if (esDatoSimulado && req.body.confirmarDatosSimulados !== true) {
-    res.status(400).json({
-      error: 'DATOS_SIMULADOS_REQUIEREN_CONFIRMACION',
-      message: 'Los datos del comprobante u odómetro provienen de un proceso simulado o fallback (OCR sin certeza total). Se requiere confirmación explícita (confirmarDatosSimulados: true) para proceder con el registro.',
-      esSimulado: true,
-      requiereConfirmacion: true,
-    });
-    return;
-  }
-
   const numLitros = Number(litros);
   const numTotal = Number(totalPagado);
   const numOdoActual = Number(odometroActual);
@@ -1324,6 +1319,8 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
     );
   const fotoOdometroUrl = fotoOdometroBase64 || generarOdometroSvgBase64(numOdoActual, vehiculo.placa);
 
+  // 🧠 LÓGICA: Marcar la solicitud como completada con la carga registrada
+  solicitudPendiente.estado = 'COMPLETADA';
   const idSolicitudFinal = solicitudAutorizacionId || solicitudPendiente.id;
 
   try {
@@ -1349,8 +1346,6 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
       claveNumerica: claveFinal,
       tipoCombustible: tipoCombustible || vehiculo.tipoCombustible,
       notaConductor: notaConductor ? String(notaConductor).trim() : undefined,
-      esSimulado: esDatoSimulado,
-      requiereRevision: esDatoSimulado || hayAnomalia,
       datosIA: datosIA || {
         estacion,
         numeroTicket: folioFinal,
@@ -1358,24 +1353,12 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
         litros: numLitros,
         totalPagado: numTotal,
         odometroLeido: numOdoActual,
-        confianzaScore: 0,
-        esSimulado: true,
-        advertencias: ['Comprobante ingresado manualmente sin verificación OCR.'],
+        confianzaScore: 95,
+        advertencias: [],
       },
     });
 
     const nuevaCarga = resultadoCarga.carga;
-
-    // 🔒 FASE 2: Marcar la solicitud como completada ÚNICAMENTE tras el registro exitoso de la carga
-    solicitudPendiente.estado = 'COMPLETADA';
-    solicitudPendiente.cargaId = nuevaCarga.id;
-    db.guardarDatos();
-
-    if (esDatoSimulado) {
-      nuevaCarga.requiereRevision = true;
-      nuevaCarga.esSimulado = true;
-      nuevaCarga.estadoValidacion = 'REQUIERE_REVISION';
-    }
 
     // Si se detectó anomalía o sospecha de fraude, despachar notificaciones y correo
     if (hayAnomalia) {
@@ -1600,204 +1583,176 @@ apiRouter.put('/cargas/:id', middlewareAutenticacion, requiereAdmin, (req: Authe
   });
 });
 
-// 🔒 FASE 2: Lock en memoria para evitar condiciones de carrera al validar facturas concurrentemente
-const activeValidacionLocks = new Set<string>();
-
-const handlerValidarCarga = async (req: AuthenticatedRequest, res: Response) => {
+apiRouter.put('/cargas/:id/validar', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
+  const {
+    estadoValidacion,
+    notasValidacion,
+    litros,
+    totalPagado,
+    precioPorLitro,
+    odometroActual,
+    estacion,
+    tipoCombustible,
+    servicioDestino,
+    saldoPrepagoId,
+    metodoPago,
+    numeroTicket,
+    claveNumerica,
+    fecha,
+    vehiculoId,
+    conductorId,
+  } = req.body;
 
-  if (activeValidacionLocks.has(id)) {
-    res.status(409).json({
-      error: 'VALIDACION_EN_CURSO',
-      message: 'Esta factura de carga ya está siendo validada por otra operación concurrente.',
-    });
+  const carga = db.cargas.find((c) => c.id === id);
+  if (!carga) {
+    res.status(404).json({ error: 'Carga de combustible no encontrada.' });
     return;
   }
 
-  activeValidacionLocks.add(id);
-
-  try {
-    const {
-      estadoValidacion,
-      notasValidacion,
-      litros,
-      totalPagado,
-      precioPorLitro,
-      odometroActual,
-      estacion,
-      tipoCombustible,
-      servicioDestino,
-      saldoPrepagoId,
-      metodoPago,
-      numeroTicket,
-      claveNumerica,
-      fecha,
-      vehiculoId,
-      conductorId,
-    } = req.body;
-
-    const carga = db.cargas.find((c) => c.id === id);
-    if (!carga) {
-      res.status(404).json({ error: 'Carga de combustible no encontrada.' });
-      return;
+  // Cambio de vehículo si se especificó
+  if (vehiculoId && vehiculoId !== carga.vehiculoId) {
+    const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId);
+    if (vehiculo) {
+      carga.vehiculoId = vehiculo.id;
+      carga.vehiculoPlaca = vehiculo.placa;
     }
-
-    // Cambio de vehículo si se especificó
-    if (vehiculoId && vehiculoId !== carga.vehiculoId) {
-      const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId);
-      if (vehiculo) {
-        carga.vehiculoId = vehiculo.id;
-        carga.vehiculoPlaca = vehiculo.placa;
-      }
-    }
-
-    // Cambio de conductor si se especificó
-    if (conductorId && conductorId !== carga.conductorId) {
-      const cond = db.usuarios.find((u) => u.id === conductorId);
-      if (cond) {
-        carga.conductorId = cond.id;
-        carga.conductorNombre = cond.nombre;
-      }
-    }
-
-    if (estacion !== undefined) carga.estacion = estacion;
-    if (tipoCombustible !== undefined) carga.tipoCombustible = tipoCombustible;
-    if (servicioDestino !== undefined) carga.servicioDestino = servicioDestino;
-    if (saldoPrepagoId !== undefined) carga.saldoPrepagoId = saldoPrepagoId;
-    if (metodoPago !== undefined) carga.metodoPago = metodoPago;
-    if (numeroTicket !== undefined) carga.numeroTicket = numeroTicket;
-    if (claveNumerica !== undefined) carga.claveNumerica = claveNumerica;
-    if (fecha !== undefined) carga.fecha = fecha;
-
-    const numLitros = litros !== undefined ? Number(litros) : carga.litros;
-    let numTotal = totalPagado !== undefined ? Number(totalPagado) : carga.totalPagado;
-    const numOdoActual = odometroActual !== undefined ? Number(odometroActual) : carga.odometroActual;
-
-    if (precioPorLitro !== undefined && litros !== undefined && totalPagado === undefined) {
-      numTotal = Number((Number(precioPorLitro) * numLitros).toFixed(2));
-    }
-
-    const precioUnitario =
-      precioPorLitro !== undefined
-        ? Number(precioPorLitro)
-        : Number((numTotal / (numLitros || 1)).toFixed(2));
-
-    carga.litros = numLitros;
-    carga.totalPagado = numTotal;
-    carga.precioPorLitro = precioUnitario;
-    carga.odometroActual = numOdoActual;
-
-    const vehiculoActual = db.vehiculos.find((v) => v.id === carga.vehiculoId);
-    const metricas = procesarMetricasCarga(
-      numOdoActual,
-      carga.odometroAnterior,
-      numLitros,
-      numTotal,
-      vehiculoActual?.rendimientoTeoricoKmL || 12.0
-    );
-
-    carga.kmRecorridos = metricas.kmRecorridos;
-    carga.costoPorKm = metricas.costoPorKm;
-    carga.rendimientoKmL = metricas.rendimientoKmL;
-    carga.anomaliaDetectada = metricas.anomalia;
-    carga.motivoAnomalia = metricas.motivoAnomalia;
-
-    if (vehiculoActual && numOdoActual > vehiculoActual.odometroActual) {
-      vehiculoActual.odometroActual = numOdoActual;
-    }
-
-    const nuevoEstado = estadoValidacion || 'VALIDADO';
-
-    // Si se va a validar por primera vez (o pasa a VALIDADO)
-    if (nuevoEstado === 'VALIDADO' && carga.estadoValidacion !== 'VALIDADO') {
-      // Si el administrador eligió no descontar de saldo prepago (ej. Crédito directo, Efectivo, Caja Chica)
-      const sinSaldoPrepago =
-        saldoPrepagoId === 'SIN_SALDO_PREPAGO' ||
-        metodoPago === 'Crédito Corporativo' ||
-        metodoPago === 'Caja Chica / Efectivo';
-
-      if (!sinSaldoPrepago) {
-        // 🔒 FASE 2: Bandera saldoYaDescontado para evitar doble descuento si la carga ya descontó saldo
-        if (!carga.saldoYaDescontado) {
-          // 1. Identificar saldo de la estación específico o por nombre de estación
-          const saldo = saldoPrepagoId
-            ? db.saldos.find((s) => s.id === saldoPrepagoId)
-            : db.buscarSaldoPorEstacion(carga.estacion);
-
-          if (!saldo) {
-            res.status(400).json({
-              error: 'SALDO_NO_CONFIGURADO',
-              message: `No se encontró una cuenta de saldo prepago para la estación "${carga.estacion}". Puedes registrar la estación en el módulo de saldos prepago antes de validar.`,
-            });
-            return;
-          }
-
-          // 2. Verificar fondos suficientes
-          if (saldo.saldoActual < numTotal) {
-            const faltante = Number((numTotal - saldo.saldoActual).toFixed(2));
-            res.status(400).json({
-              error: 'SALDO_INSUFICIENTE',
-              message: `Saldo insuficiente en ${saldo.estacionNombre}. Saldo disponible: ₡${Math.round(saldo.saldoActual).toLocaleString('es-CR')}, Faltante: ₡${Math.round(faltante).toLocaleString('es-CR')}. Debe registrar un depósito antes de validar.`,
-              saldoDisponible: saldo.saldoActual,
-              faltante,
-              saldoId: saldo.id,
-              estacionNombre: saldo.estacionNombre,
-              tipoCombustible: carga.tipoCombustible,
-              costoTotalFactura: numTotal,
-            });
-            return;
-          }
-
-          // 3. Descuento atómico del saldo (manteniendo el tipo de combustible en la bitácora)
-          const resultadoDescuento = db.descontarSaldo({
-            saldoId: saldo.id,
-            monto: numTotal,
-            registroCombustibleId: carga.id,
-            tipoCombustible: carga.tipoCombustible,
-            vehiculoPlaca: carga.vehiculoPlaca,
-            numeroTicket: carga.numeroTicket,
-            usuarioId: req.user?.userId || 'usr-admin-1',
-            usuarioNombre: req.user?.nombre || 'Administrador',
-            notas: `Validación factura #${carga.numeroTicket || carga.id} - ${carga.vehiculoPlaca} (${numLitros} L ${carga.tipoCombustible})`,
-          });
-
-          if (!resultadoDescuento.exito) {
-            res.status(400).json({
-              error: 'ERROR_DESCUENTO_SALDO',
-              message: resultadoDescuento.error || 'Error al descontar saldo prepago.',
-            });
-            return;
-          }
-
-          carga.saldoPrepagoId = saldo.id;
-          carga.servicioDestino = saldo.estacionNombre;
-          carga.saldoYaDescontado = true;
-        }
-      }
-    }
-
-    carga.estadoValidacion = nuevoEstado;
-    carga.validadoPor = req.user?.nombre || 'Administrador';
-    carga.fechaValidacion = new Date().toISOString();
-    carga.notasValidacion = notasValidacion || carga.notasValidacion;
-
-    db.guardarDatos();
-
-    res.json({
-      message: `Factura ${nuevoEstado === 'VALIDADO' ? 'aprobada y validada' : 'actualizada'} exitosamente.`,
-      carga,
-    });
-  } finally {
-    activeValidacionLocks.delete(id);
   }
-};
 
-apiRouter.put('/cargas/:id/validar', middlewareAutenticacion, requiereAdmin, handlerValidarCarga);
-apiRouter.post('/cargas/:id/validar', middlewareAutenticacion, requiereAdmin, handlerValidarCarga);
+  // Cambio de conductor si se especificó
+  if (conductorId && conductorId !== carga.conductorId) {
+    const cond = db.usuarios.find((u) => u.id === conductorId);
+    if (cond) {
+      carga.conductorId = cond.id;
+      carga.conductorNombre = cond.nombre;
+    }
+  }
+
+  if (estacion !== undefined) carga.estacion = estacion;
+  if (tipoCombustible !== undefined) carga.tipoCombustible = tipoCombustible;
+  if (servicioDestino !== undefined) carga.servicioDestino = servicioDestino;
+  if (saldoPrepagoId !== undefined) carga.saldoPrepagoId = saldoPrepagoId;
+  if (metodoPago !== undefined) carga.metodoPago = metodoPago;
+  if (numeroTicket !== undefined) carga.numeroTicket = numeroTicket;
+  if (claveNumerica !== undefined) carga.claveNumerica = claveNumerica;
+  if (fecha !== undefined) carga.fecha = fecha;
+
+  const numLitros = litros !== undefined ? Number(litros) : carga.litros;
+  let numTotal = totalPagado !== undefined ? Number(totalPagado) : carga.totalPagado;
+  const numOdoActual = odometroActual !== undefined ? Number(odometroActual) : carga.odometroActual;
+
+  if (precioPorLitro !== undefined && litros !== undefined && totalPagado === undefined) {
+    numTotal = Number((Number(precioPorLitro) * numLitros).toFixed(2));
+  }
+
+  const precioUnitario =
+    precioPorLitro !== undefined
+      ? Number(precioPorLitro)
+      : Number((numTotal / (numLitros || 1)).toFixed(2));
+
+  carga.litros = numLitros;
+  carga.totalPagado = numTotal;
+  carga.precioPorLitro = precioUnitario;
+  carga.odometroActual = numOdoActual;
+
+  const vehiculoActual = db.vehiculos.find((v) => v.id === carga.vehiculoId);
+  const metricas = procesarMetricasCarga(
+    numOdoActual,
+    carga.odometroAnterior,
+    numLitros,
+    numTotal,
+    vehiculoActual?.rendimientoTeoricoKmL || 12.0
+  );
+
+  carga.kmRecorridos = metricas.kmRecorridos;
+  carga.costoPorKm = metricas.costoPorKm;
+  carga.rendimientoKmL = metricas.rendimientoKmL;
+  carga.anomaliaDetectada = metricas.anomalia;
+  carga.motivoAnomalia = metricas.motivoAnomalia;
+
+  if (vehiculoActual && numOdoActual > vehiculoActual.odometroActual) {
+    vehiculoActual.odometroActual = numOdoActual;
+  }
+
+  const nuevoEstado = estadoValidacion || 'VALIDADO';
+
+  // Si se va a validar por primera vez (o pasa a VALIDADO)
+  if (nuevoEstado === 'VALIDADO' && carga.estadoValidacion !== 'VALIDADO') {
+    // Si el administrador eligió no descontar de saldo prepago (ej. Crédito directo, Efectivo, Caja Chica)
+    const sinSaldoPrepago =
+      saldoPrepagoId === 'SIN_SALDO_PREPAGO' ||
+      metodoPago === 'Crédito Corporativo' ||
+      metodoPago === 'Caja Chica / Efectivo';
+
+    if (!sinSaldoPrepago) {
+      // 1. Identificar saldo de la estación específico o por nombre de estación
+      let saldo = saldoPrepagoId
+        ? db.saldos.find((s) => s.id === saldoPrepagoId)
+        : db.buscarSaldoPorEstacion(carga.estacion);
+
+      if (!saldo) {
+        res.status(400).json({
+          error: 'SALDO_NO_CONFIGURADO',
+          message: `No se encontró una cuenta de saldo prepago para la estación "${carga.estacion}". Puedes registrar la estación en el módulo de saldos prepago antes de validar.`,
+        });
+        return;
+      }
+
+      // 2. Verificar fondos suficientes
+      if (saldo.saldoActual < numTotal) {
+        const faltante = Number((numTotal - saldo.saldoActual).toFixed(2));
+        res.status(400).json({
+          error: 'SALDO_INSUFICIENTE',
+          message: `Saldo insuficiente en ${saldo.estacionNombre}. Saldo disponible: ₡${Math.round(saldo.saldoActual).toLocaleString('es-CR')}, Faltante: ₡${Math.round(faltante).toLocaleString('es-CR')}. Debe registrar un depósito antes de validar.`,
+          saldoDisponible: saldo.saldoActual,
+          faltante,
+          saldoId: saldo.id,
+          estacionNombre: saldo.estacionNombre,
+          tipoCombustible: carga.tipoCombustible,
+          costoTotalFactura: numTotal,
+        });
+        return;
+      }
+
+      // 3. Descuento atómico del saldo (manteniendo el tipo de combustible en la bitácora)
+      const resultadoDescuento = db.descontarSaldo({
+        saldoId: saldo.id,
+        monto: numTotal,
+        registroCombustibleId: carga.id,
+        tipoCombustible: carga.tipoCombustible,
+        vehiculoPlaca: carga.vehiculoPlaca,
+        numeroTicket: carga.numeroTicket,
+        usuarioId: req.user?.userId || 'usr-admin-1',
+        usuarioNombre: req.user?.nombre || 'Administrador',
+        notas: `Validación factura #${carga.numeroTicket || carga.id} - ${carga.vehiculoPlaca} (${numLitros} L ${carga.tipoCombustible})`,
+      });
+
+      if (!resultadoDescuento.exito) {
+        res.status(400).json({
+          error: 'ERROR_DESCUENTO_SALDO',
+          message: resultadoDescuento.error || 'Error al descontar saldo prepago.',
+        });
+        return;
+      }
+
+      carga.saldoPrepagoId = saldo.id;
+      carga.servicioDestino = saldo.estacionNombre;
+    }
+  }
+
+  carga.estadoValidacion = nuevoEstado;
+  carga.validadoPor = req.user?.nombre || 'Administrador';
+  carga.fechaValidacion = new Date().toISOString();
+  carga.notasValidacion = notasValidacion || carga.notasValidacion;
+
+  res.json({
+    message: `Factura ${nuevoEstado === 'VALIDADO' ? 'aprobada y validada' : 'actualizada'} exitosamente.`,
+    carga,
+  });
+});
 
 apiRouter.delete('/cargas/todas', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
-  // 🔒 FASE 2: Vaciado seguro de array preservando el proxy reactivo
-  db.vaciarCargas();
+  db.cargas = [];
   res.json({ message: 'Todo el historial de cargas de combustible ha sido eliminado correctamente.' });
 });
 
@@ -2787,8 +2742,7 @@ apiRouter.post('/notificaciones/test-email', middlewareAutenticacion, requiereAd
 // 13. PRUEBAS UNITARIAS EN TIEMPO REAL
 // ==========================================
 
-// 🔒 SEGURIDAD (1.6): Solo el Administrador Principal puede ejecutar el suite de pruebas en el servidor
-apiRouter.get('/tests/run', middlewareAutenticacion, requiereAdminPrincipal, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/tests/run', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
   const resultadoCalculos = ejecutarPruebasCalculos();
 
   // Test suite de saldos prepago
@@ -3026,17 +2980,7 @@ apiRouter.get('/tests/run', middlewareAutenticacion, requiereAdminPrincipal, (re
 // 13. RESTAURAR DATOS DEMO
 // ==========================================
 
-// 🔒 SEGURIDAD (1.6): Solo el Administrador Principal con confirmación explícita puede reiniciar la base de datos
-apiRouter.post('/reset-demo', middlewareAutenticacion, requiereAdminPrincipal, (req: AuthenticatedRequest, res: Response) => {
-  const { confirmacion } = req.body || {};
-  if (confirmacion !== 'REINICIAR_TODO_CONFIRMADO') {
-    res.status(400).json({
-      error: 'CONFIRMACION_REQUERIDA',
-      message: 'Para reiniciar la base de datos demo debe enviar { "confirmacion": "REINICIAR_TODO_CONFIRMADO" } en el cuerpo de la petición.',
-    });
-    return;
-  }
-
+apiRouter.post('/reset-demo', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
   db.inicializarDatos();
   res.json({ message: 'Base de datos restaurada al estado inicial de demostración.' });
 });

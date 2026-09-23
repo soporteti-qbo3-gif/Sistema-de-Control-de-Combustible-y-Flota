@@ -15,8 +15,9 @@ import {
   ArrowRight,
   PanelLeftClose,
   PanelLeftOpen,
+  LogOut,
 } from 'lucide-react';
-import { useAuth, DEMO_USERS } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { NotificacionSistema } from '../types';
 import { UserAvatar } from './UserAvatar';
@@ -42,7 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   sidebarCollapsed = false,
   onToggleSidebar,
 }) => {
-  const { usuario, cambiarUsuarioDemo } = useAuth();
+  const { usuario, logout } = useAuth();
   const [dropdownUserOpen, setDropdownUserOpen] = useState(false);
   const [dropdownNotifOpen, setDropdownNotifOpen] = useState(false);
   const [notificaciones, setNotificaciones] = useState<NotificacionSistema[]>([]);
@@ -252,75 +253,57 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <ChevronDown className="w-3.5 h-3.5 text-slate-400 ml-0.5" />
               </button>
 
-              {/* Menú Dropdown de Selección de Cuenta */}
+              {/* Menú Dropdown de Usuario / Sesión Activa */}
               {dropdownUserOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setDropdownUserOpen(false)} />
                   <div
-                    id="dropdown-demo-users"
-                    className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-2"
+                    id="dropdown-user-menu"
+                    className="absolute right-0 mt-2 w-72 bg-white border border-slate-200 rounded-lg shadow-lg z-50 p-3"
                   >
-                    <div className="px-2 py-1.5 border-b border-slate-100 mb-1">
-                      <p className="text-xs font-semibold text-slate-900">
-                        Cuenta Activa
-                      </p>
-                      <p className="text-[11px] text-slate-500">
-                        Selecciona un usuario para simular su rol
-                      </p>
+                    <div className="flex items-center space-x-3 pb-3 border-b border-slate-100">
+                      <UserAvatar
+                        nombre={usuario?.nombre || 'Usuario'}
+                        rol={usuario?.rol || 'CONDUCTOR'}
+                        size="md"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-slate-900 truncate">
+                          {usuario?.nombre}
+                        </p>
+                        <p className="text-[11px] text-slate-500 truncate">
+                          {usuario?.email}
+                        </p>
+                        <span
+                          className={`inline-block mt-1 text-[9px] font-mono uppercase px-1.5 py-0.5 rounded font-medium ${
+                            usuario?.rol === 'ADMIN'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}
+                        >
+                          {usuario?.rol === 'ADMIN' ? 'Administrador' : 'Conductor'}
+                        </span>
+                      </div>
                     </div>
 
-                    <div className="space-y-1">
-                      {DEMO_USERS.map((demo) => {
-                        const isCurrent = usuario?.email === demo.email;
-                        return (
-                          <button
-                            key={demo.email}
-                            id={`btn-select-user-${demo.rol.toLowerCase()}-${demo.email.split('@')[0]}`}
-                            onClick={async () => {
-                              await cambiarUsuarioDemo(demo.email);
-                              setDropdownUserOpen(false);
-                              if (demo.rol === 'ADMIN') {
-                                setVistaActiva('admin-dashboard');
-                              } else {
-                                setVistaActiva('conductor-home');
-                              }
-                            }}
-                            className={`w-full flex items-start space-x-2.5 p-2 rounded-md transition-colors text-left ${
-                              isCurrent
-                                ? 'bg-slate-900 text-white'
-                                : 'hover:bg-slate-100 text-slate-700'
-                            }`}
-                          >
-                            <UserAvatar
-                              nombre={demo.nombre}
-                              rol={demo.rol}
-                              size="xs"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between">
-                                <span className={`text-xs font-medium truncate ${isCurrent ? 'text-white' : 'text-slate-900'}`}>
-                                  {demo.nombre}
-                                </span>
-                                <span
-                                  className={`text-[9px] font-mono uppercase px-1 rounded ${
-                                    isCurrent
-                                      ? 'bg-slate-800 text-slate-300'
-                                      : 'bg-slate-100 text-slate-600'
-                                  }`}
-                                >
-                                  {demo.rol}
-                                </span>
-                              </div>
-                              <p className={`text-[11px] truncate mt-0.5 ${isCurrent ? 'text-slate-300' : 'text-slate-500'}`}>
-                                {demo.descripcion}
-                              </p>
-                            </div>
-                            {isCurrent && (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-white mt-0.5 flex-shrink-0" />
-                            )}
-                          </button>
-                        );
-                      })}
+                    {usuario?.telefonoContacto && (
+                      <div className="py-2 text-[11px] text-slate-600 border-b border-slate-100">
+                        <span className="text-slate-400">Teléfono:</span> {usuario.telefonoContacto}
+                      </div>
+                    )}
+
+                    <div className="pt-2">
+                      <button
+                        id="btn-logout"
+                        onClick={() => {
+                          setDropdownUserOpen(false);
+                          logout();
+                        }}
+                        className="w-full flex items-center justify-center space-x-2 px-3 py-2 rounded-md hover:bg-rose-50 text-rose-700 text-xs font-medium transition-colors border border-rose-100 cursor-pointer"
+                      >
+                        <LogOut className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Cerrar Sesión</span>
+                      </button>
                     </div>
                   </div>
                 </>

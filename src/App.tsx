@@ -32,6 +32,7 @@ import { MiVehiculo } from './views/conductor/MiVehiculo';
 
 // Páginas y Componentes del Sistema
 import { NotFound } from './components/NotFound';
+import { LoginPage } from './views/auth/LoginPage';
 
 import { BottomNav } from './components/BottomNav';
 import { api } from './services/api';
@@ -109,6 +110,11 @@ const MainLayout: React.FC = () => {
         </div>
       </div>
     );
+  }
+
+  // Si no hay usuario autenticado o debe cambiar su contraseña temporal, mostrar la pantalla de autenticación
+  if (!usuario || usuario.debeCambiarPassword) {
+    return <LoginPage />;
   }
 
   const solicitudesPendientesCount = solicitudes.filter((s) => s.estado === 'PENDIENTE').length;
