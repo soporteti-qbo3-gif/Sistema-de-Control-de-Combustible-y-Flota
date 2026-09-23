@@ -19,6 +19,8 @@ export interface Usuario {
   ultimoAcceso?: string;
 }
 
+export type PublicUser = Omit<Usuario, 'passwordHash' | 'tempPassword'>;
+
 export type TipoControlMedicion = 'KILOMETROS' | 'HORAS' | 'NO_APLICA';
 export type EstadoFinancieroVehiculo = 'Leasing' | 'Préstamo' | 'Alquiler' | 'Libre';
 
@@ -93,6 +95,7 @@ export interface DatosExtraidosIA {
   lucesAdvertenciaTablero?: string[];
   esDuplicado?: boolean;
   duplicadoDetalle?: string;
+  esSimulado?: boolean;
 }
 
 export interface CargaCombustible {

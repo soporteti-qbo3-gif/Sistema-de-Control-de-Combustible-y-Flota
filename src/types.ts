@@ -93,6 +93,7 @@ export interface DatosExtraidosIA {
   lucesAdvertenciaTablero?: string[];
   esDuplicado?: boolean;
   duplicadoDetalle?: string;
+  esSimulado?: boolean;
 }
 
 export interface CargaCombustible {

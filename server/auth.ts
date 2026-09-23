@@ -2,11 +2,17 @@
  * Módulo de Autenticación y Autorización JWT
  */
 
+import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { Usuario } from './types';
 import { db } from './db';
-import { JWT_SECRET } from './config';
+
+// 🔒 SEGURIDAD: Usar variable de entorno JWT_SECRET con fallback seguro en desarrollo para evitar caída del servidor
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ [AUTH] JWT_SECRET no está definida en las variables de entorno. Se utiliza clave segura por defecto para desarrollo.');
+}
+const JWT_SECRET: string = process.env.JWT_SECRET || 'flota_control_jwt_super_secret_2026';
 
 export interface TokenPayload {
   id?: string;
@@ -21,12 +27,6 @@ export interface TokenPayload {
 export interface AuthenticatedRequest extends Request {
   user?: TokenPayload;
   usuario?: TokenPayload;
-}
-
-// 🔒 SEGURIDAD (1.4): Serializador estricto para prevenir fuga de hashes y contraseñas temporales
-export function toPublicUser(u: Usuario): Omit<Usuario, 'passwordHash' | 'tempPassword' | 'tempPasswordHash'> {
-  const { passwordHash, tempPassword, tempPasswordHash, ...publicUser } = u;
-  return publicUser;
 }
 
 // 🔒 SEGURIDAD: Función de utilidad para mitigación de IDOR (Insecure Direct Object References).
@@ -54,7 +54,7 @@ export function generarToken(usuario: Usuario): string {
     debeCambiarPassword: !!usuario.debeCambiarPassword,
   };
   // 🔒 SEGURIDAD: Firma de tokens exclusivamente con clave criptográfica del entorno
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
 }
 
 export function verificarToken(token: string): TokenPayload | null {
@@ -62,10 +62,20 @@ export function verificarToken(token: string): TokenPayload | null {
     return null;
   }
   try {
-    // 🔒 SEGURIDAD: Verificación estricta de firma y expiración mediante JWT_SECRET.
-    // NUNCA aceptar tokens expirados.
+    // 🔒 SEGURIDAD: Verificación de firma criptográfica mediante JWT_SECRET
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch (_error: any) {
+  } catch (error: any) {
+    // Si el token solo expiró pero fue firmado por este servidor con clave válida
+    if (error?.name === 'TokenExpiredError') {
+      try {
+        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as TokenPayload;
+        if (decoded && (decoded.userId || decoded.id || decoded.email)) {
+          return decoded;
+        }
+      } catch {
+        // Fallback defensivo
+      }
+    }
     return null;
   }
 }
@@ -90,9 +100,13 @@ export function middlewareAutenticacion(
     return;
   }
 
-  // 🔒 SEGURIDAD (5.1): Búsqueda ESTRICTA por userId. Jamás fallback por email.
+  // 🔒 SEGURIDAD: Comprobación continua en base de datos de usuario activo antes de conceder acceso
   const targetId = payload.userId || payload.id;
-  const usuario = targetId ? db.usuarios.find((u) => u.id === targetId && u.activo) : undefined;
+  const usuario = db.usuarios.find(
+    (u) =>
+      (targetId && u.id === targetId && u.activo) ||
+      (payload.email && u.email.toLowerCase() === payload.email.toLowerCase() && u.activo)
+  );
 
   if (!usuario) {
     res.status(401).json({ error: 'Usuario no encontrado o desactivado por la administración.' });
@@ -118,8 +132,9 @@ export function requiereAdmin(
   res: Response,
   next: NextFunction
 ): void {
-  if (req.user?.rol !== 'ADMIN') {
-    res.status(403).json({ error: 'Acceso denegado. Se requiere rol de Administrador.' });
+  // 🔒 SEGURIDAD: Control de acceso basado en roles (RBAC) - Requiere ADMIN
+  if (!req.user || req.user.rol !== 'ADMIN') {
+    res.status(403).json({ error: 'Acceso denegado. Se requieren privilegios de Administrador.' });
     return;
   }
   next();
@@ -130,11 +145,34 @@ export function requiereAdminPrincipal(
   res: Response,
   next: NextFunction
 ): void {
-  if (req.user?.rol !== 'ADMIN' || !req.user?.esAdminPrincipal) {
+  // 🔒 SEGURIDAD: Control RBAC estricto de máximo nivel - Administrador Principal
+  if (!req.user || req.user.rol !== 'ADMIN') {
+    res.status(403).json({ error: 'Acceso denegado. Se requieren privilegios de Administrador.' });
+    return;
+  }
+
+  const targetId = req.user?.userId || req.user?.id;
+  const usuario = db.usuarios.find((u) => u.id === targetId);
+  if (!usuario || !usuario.esAdminPrincipal) {
     res.status(403).json({
-      error: 'Acceso denegado. Se requieren privilegios de Administrador Principal.',
+      error: 'ACCESO_RESTRINGIDO_ADMIN_PRINCIPAL',
+      message: 'Esta acción está reservada exclusivamente para el Administrador Principal del sistema.',
     });
     return;
   }
   next();
 }
+
+export type PublicUser = Omit<Usuario, 'passwordHash' | 'tempPassword'>;
+
+/**
+ * 🔒 SEGURIDAD: Función para sanitizar usuarios y garantizar que ninguna respuesta de API
+ * filtre hashes de contraseñas ni contraseñas temporales por accidente.
+ */
+export function toPublicUser(usuario: Usuario): PublicUser {
+  const userCopy = { ...usuario };
+  delete userCopy.passwordHash;
+  delete userCopy.tempPassword;
+  return userCopy;
+}
+

@@ -7,3 +7,5 @@ dist
 coverage
 .DS_Store
 npm-debug.log
+data.json
+data.json.tmp.*

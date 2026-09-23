@@ -603,7 +603,7 @@ export const api = {
     telefonoContacto: string;
     tempPassword?: string;
     activo?: boolean;
-  }): Promise<{ message: string; usuario: Usuario }> {
+  }): Promise<{ message: string; usuario: Usuario; tempPasswordGenerada?: string }> {
     const res = await fetch(`${API_BASE}/usuarios/admin`, {
       method: 'POST',
       headers: getAuthHeaders(),
@@ -620,7 +620,7 @@ export const api = {
     vehiculoAsignadoId?: string;
     tempPassword?: string;
     activo?: boolean;
-  }): Promise<{ message: string; usuario: Usuario }> {
+  }): Promise<{ message: string; usuario: Usuario; tempPasswordGenerada?: string }> {
     const res = await fetch(`${API_BASE}/usuarios/conductor`, {
       method: 'POST',
       headers: getAuthHeaders(),

@@ -161,11 +161,12 @@ export const GestionConductores: React.FC = () => {
         });
 
         notificarExito(`Conductor ${res.usuario.nombre} registrado exitosamente.`);
-        if (res.usuario.tempPassword) {
+        const passGenerada = res.tempPasswordGenerada || res.usuario.tempPassword;
+        if (passGenerada) {
           setModalTempPass({
             nombre: res.usuario.nombre,
             email: res.usuario.email,
-            pass: res.usuario.tempPassword,
+            pass: passGenerada,
           });
         }
       }

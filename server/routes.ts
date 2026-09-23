@@ -21,6 +21,7 @@ import {
   requiereAdminPrincipal,
   verificarPropiedadRecurso, // 🔒 SEGURIDAD: Control de acceso para mitigación de IDOR
   AuthenticatedRequest,
+  toPublicUser,
 } from './auth';
 import { extraerDatosComprobanteYOdometro } from './ia_extractor';
 import {
@@ -232,7 +233,7 @@ apiRouter.get('/usuarios', middlewareAutenticacion, requiereAdmin, (req: Authent
   }
 
   const conDetalles = lista.map((u) => ({
-    ...u,
+    ...toPublicUser(u),
     vehiculoAsignado: u.vehiculoAsignadoId ? db.vehiculos.find((v) => v.id === u.vehiculoAsignadoId) : undefined,
   }));
 
@@ -253,8 +254,9 @@ apiRouter.post('/usuarios/admin', middlewareAutenticacion, requiereAdminPrincipa
     });
 
     res.status(201).json({
-      message: 'Administrador creado exitosamente. Se ha generado su contraseña temporal y deberá cambiarla al iniciar sesión.',
-      usuario: nuevoAdmin,
+      message: 'Administrador creado exitosamente. La contraseña temporal se muestra solo en esta respuesta y expira en 72 horas.',
+      usuario: toPublicUser(nuevoAdmin),
+      tempPasswordGenerada: nuevoAdmin.tempPassword,
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al crear administrador.' });
@@ -277,8 +279,9 @@ apiRouter.post('/usuarios/conductor', middlewareAutenticacion, requiereAdmin, as
     });
 
     res.status(201).json({
-      message: 'Conductor creado exitosamente. Se ha establecido la contraseña temporal.',
-      usuario: nuevoConductor,
+      message: 'Conductor creado exitosamente. La contraseña temporal se muestra solo en esta respuesta y expira en 72 horas.',
+      usuario: toPublicUser(nuevoConductor),
+      tempPasswordGenerada: nuevoConductor.tempPassword,
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al crear conductor.' });
@@ -313,7 +316,7 @@ apiRouter.put('/usuarios/:id', middlewareAutenticacion, requiereAdmin, (req: Aut
 
     res.json({
       message: 'Usuario actualizado exitosamente.',
-      usuario: usuarioActualizado,
+      usuario: toPublicUser(usuarioActualizado),
     });
   } catch (error: any) {
     res.status(400).json({ error: error.message || 'Error al actualizar usuario.' });
@@ -350,7 +353,7 @@ apiRouter.put('/usuarios/:id/suspender', middlewareAutenticacion, requiereAdmin,
   usuario.activo = false;
   res.json({
     message: `${usuario.rol === 'ADMIN' ? 'Administrador' : 'Conductor'} suspendido exitosamente. No podrá iniciar sesión ni registrar operaciones.`,
-    usuario,
+    usuario: toPublicUser(usuario),
   });
 });
 
@@ -374,7 +377,7 @@ apiRouter.put('/usuarios/:id/activar', middlewareAutenticacion, requiereAdmin, (
   usuario.activo = true;
   res.json({
     message: 'Usuario reactivado exitosamente.',
-    usuario,
+    usuario: toPublicUser(usuario),
   });
 });
 

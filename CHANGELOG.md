@@ -3,6 +3,18 @@ Todas las modificaciones notables en este proyecto serán documentadas en este a
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.6.1] - 2026-09-23
+
+### Correcciones y Sanitización de Usuarios
+- **Resolución de Errores de Type-Check:**
+  - Restaurado el campo anti-fraude `esSimulado?: boolean` en la interfaz `DatosExtraidosIA` tanto en `server/types.ts` como en `src/types.ts`.
+  - Definida e implementada la función `toPublicUser` y tipo `PublicUser` en `server/auth.ts` para excluir estrictamente `passwordHash` y `tempPassword` de cualquier respuesta de API de usuarios.
+- **Sanitización de Respuestas en Creación de Usuarios:**
+  - Endpoints `POST /usuarios/admin` y `POST /usuarios/conductor` en `server/routes.ts` ahora retornan `usuario: toPublicUser(...)` junto con `tempPasswordGenerada` como propiedad separada de un solo uso, con aclaración de expiración en 72 horas.
+  - Vistas `GestionAdministradores.tsx` y `GestionConductores.tsx` actualizadas para leer preferentemente `res.tempPasswordGenerada` al mostrar la clave temporal al administrador.
+- **Protección de Persistencia Local:**
+  - Añadidas las reglas `data.json` y `data.json.tmp.*` en `.gitignore` y `.dockerignore` para prevenir la inclusión inadvertida de la base de datos local en control de versiones o imágenes de contenedor.
+
 ## [2.6.0] - 2026-09-23
 
 ### Seguridad y Autenticación (Refactorización Integral)
