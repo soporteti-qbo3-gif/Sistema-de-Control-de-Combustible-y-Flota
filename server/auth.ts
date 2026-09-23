@@ -53,8 +53,8 @@ export function generarToken(usuario: Usuario): string {
     esAdminPrincipal: !!usuario.esAdminPrincipal,
     debeCambiarPassword: !!usuario.debeCambiarPassword,
   };
-  // 🔒 SEGURIDAD: Firma de tokens exclusivamente con clave criptográfica del entorno
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: '30d' });
+  // 🔒 SEGURIDAD: Firma de tokens exclusivamente con clave criptográfica del entorno con expiración de 12 horas (jornada laboral)
+  return jwt.sign(payload, JWT_SECRET, { expiresIn: '12h' });
 }
 
 export function verificarToken(token: string): TokenPayload | null {

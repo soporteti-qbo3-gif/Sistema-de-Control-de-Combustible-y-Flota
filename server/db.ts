@@ -1994,9 +1994,9 @@ class BaseDeDatosFlota {
 
       this.movimientosSaldo.unshift(movimiento);
 
-      // 5. Cambiar estado a 'AUTORIZADA' y generar código
+      // 5. Cambiar estado a 'AUTORIZADA' y generar código criptográficamente seguro
       const codigoAutorizacion =
-        solicitud.codigoAutorizacion || `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
+        solicitud.codigoAutorizacion || `AUT-${crypto.randomInt(10000, 100000)}`;
 
       solicitud.estado = 'AUTORIZADA' as any;
       solicitud.codigoAutorizacion = codigoAutorizacion;

@@ -3,6 +3,7 @@
  */
 
 import { Router, Response } from 'express';
+import crypto from 'crypto';
 // 🧠 LÓGICA: Importación de Zod para validación estricta de esquemas de entrada y salida
 import { z } from 'zod';
 // 🔒 SEGURIDAD: Importación de express-rate-limit para mitigación de ataques de fuerza bruta
@@ -66,6 +67,18 @@ const loginRateLimiter = rateLimit({
   message: {
     error: 'DEMASIADOS_INTENTOS',
     message: 'Demasiados intentos de inicio de sesión. Por favor espere 15 minutos antes de reintentar.',
+  },
+});
+
+// 🔒 SEGURIDAD: Rate limit específico para registro de cargas contra fuerza bruta de códigos de autorización
+const cargasRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 30, // máximo 30 intentos por IP cada 15 minutos
+  standardHeaders: true,
+  legacyHeaders: false,
+  validate: { xForwardedForHeader: false },
+  message: {
+    error: 'Demasiados intentos de registro de carga. Por favor espere 15 minutos antes de reintentar.',
   },
 });
 
@@ -784,6 +797,12 @@ apiRouter.post('/solicitudes', middlewareAutenticacion, (req: AuthenticatedReque
     return;
   }
 
+  // 🔒 SEGURIDAD: Un conductor solo puede crear solicitudes para su vehículo asignado. ADMIN puede para cualquiera.
+  if (req.user?.rol === 'CONDUCTOR' && vehiculo.conductorId !== req.user?.userId) {
+    res.status(403).json({ error: 'Solo puedes solicitar carga para tu vehículo asignado.' });
+    return;
+  }
+
   // 🧠 LÓGICA: PREVENCIÓN DE SPAM - Bloquea la creación si ya existe una solicitud con estado 'PENDIENTE' para el mismo vehiculoId
   const solicitudPendienteExistente = db.solicitudes.find(
     (s) => s.vehiculoId === vehiculoId && s.estado === 'PENDIENTE'
@@ -799,8 +818,8 @@ apiRouter.post('/solicitudes', middlewareAutenticacion, (req: AuthenticatedReque
   const conductorNombre = conductor ? conductor.nombre : req.user?.nombre || 'Conductor';
   const conductorTelefono = conductor?.telefonoContacto || '+506 8876-5432';
 
-  // 🧠 LÓGICA: Generar código de autorización asignado a la solicitud pendiente para control estricto de despacho
-  const codigoAutorizacionGenerado = `AUT-${Math.floor(10000 + Math.random() * 90000)}`;
+  // 🧠 LÓGICA: Generar código de autorización asignado a la solicitud con aleatoriedad criptográfica
+  const codigoAutorizacionGenerado = `AUT-${crypto.randomInt(10000, 100000)}`;
 
   const nuevaSolicitud: SolicitudAutorizacion = {
     id: `SOL-${new Date().getFullYear()}-${String(db.solicitudes.length + 1).padStart(3, '0')}`,
@@ -1156,7 +1175,7 @@ apiRouter.get('/cargas/:id', middlewareAutenticacion, (req: AuthenticatedRequest
   res.json(carga);
 });
 
-apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/cargas', cargasRateLimiter, middlewareAutenticacion, async (req: AuthenticatedRequest, res: Response) => {
   const {
     vehiculoId,
     solicitudAutorizacionId,
@@ -1211,7 +1230,15 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
 
   if (!solicitudPendiente) {
     res.status(400).json({
-      error: 'No se encontró ninguna solicitud pendiente de autorización para este vehículo.',
+      error: 'El código de autorización ingresado no es válido o no corresponde a una solicitud activa.',
+    });
+    return;
+  }
+
+  // 🔒 SEGURIDAD: Validar que la solicitud usada pertenezca al usuario conductor autenticado
+  if (req.user?.rol === 'CONDUCTOR' && solicitudPendiente.conductorId !== req.user?.userId) {
+    res.status(403).json({
+      error: 'No tienes permiso para registrar cargas sobre esta solicitud.',
     });
     return;
   }
@@ -1219,7 +1246,7 @@ apiRouter.post('/cargas', middlewareAutenticacion, async (req: AuthenticatedRequ
   const codigoEsperado = (solicitudPendiente.codigoAutorizacion || '').trim().toUpperCase();
   if (!codigoEsperado || codigoEsperado !== codigoIngresado) {
     res.status(400).json({
-      error: `El código de autorización ingresado (${codigoAutorizacion}) no coincide con el código de autorización de la solicitud (${codigoEsperado || 'sin código asignado'}).`,
+      error: 'El código de autorización ingresado no es válido o no corresponde a una solicitud activa.',
     });
     return;
   }
@@ -2335,7 +2362,7 @@ apiRouter.delete('/estaciones/:id', middlewareAutenticacion, requiereAdminPrinci
 // 12. CONTROL DE CAJA CHICA DE COMBUSTIBLES
 // ==========================================
 
-apiRouter.get('/cajas-chicas', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/cajas-chicas', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   try {
     const cajas = db.getCajasChicas();
     res.json(cajas);
@@ -2344,7 +2371,7 @@ apiRouter.get('/cajas-chicas', middlewareAutenticacion, (req: AuthenticatedReque
   }
 });
 
-apiRouter.get('/cajas-chicas/metricas', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/cajas-chicas/metricas', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   try {
     const metricas = db.getMetricasCajaChica();
     res.json(metricas);
@@ -2353,7 +2380,7 @@ apiRouter.get('/cajas-chicas/metricas', middlewareAutenticacion, (req: Authentic
   }
 });
 
-apiRouter.get('/cajas-chicas/movimientos', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/cajas-chicas/movimientos', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { cajaChicaId, tipo, estado, conductorId, vehiculoPlaca, fechaDesde, fechaHasta } = req.query;
 
   try {
@@ -2372,7 +2399,7 @@ apiRouter.get('/cajas-chicas/movimientos', middlewareAutenticacion, (req: Authen
   }
 });
 
-apiRouter.get('/cajas-chicas/arqueos', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/cajas-chicas/arqueos', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { cajaChicaId } = req.query;
   try {
     const arqueos = db.getArqueosCajaChica(cajaChicaId ? String(cajaChicaId) : undefined);
@@ -2382,7 +2409,7 @@ apiRouter.get('/cajas-chicas/arqueos', middlewareAutenticacion, (req: Authentica
   }
 });
 
-apiRouter.get('/cajas-chicas/:id', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.get('/cajas-chicas/:id', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const caja = db.getCajaChicaById(id);
   if (!caja) {
@@ -2438,7 +2465,7 @@ apiRouter.post('/cajas-chicas', middlewareAutenticacion, requiereAdminPrincipal,
   }
 });
 
-apiRouter.put('/cajas-chicas/:id', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.put('/cajas-chicas/:id', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
 
   try {
@@ -2463,7 +2490,7 @@ apiRouter.delete('/cajas-chicas/:id', middlewareAutenticacion, requiereAdminPrin
   }
 });
 
-apiRouter.post('/cajas-chicas/:id/egreso', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/cajas-chicas/:id/egreso', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const {
     monto,
@@ -2528,7 +2555,7 @@ apiRouter.post('/cajas-chicas/:id/egreso', middlewareAutenticacion, (req: Authen
   }
 });
 
-apiRouter.post('/cajas-chicas/:id/vales', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/cajas-chicas/:id/vales', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { montoEstimado, conductorId, conductorNombre, vehiculoId, vehiculoPlaca, concepto, motivo, fechaDocumento, notas } = req.body;
 
@@ -2562,7 +2589,7 @@ apiRouter.post('/cajas-chicas/:id/vales', middlewareAutenticacion, (req: Authent
   }
 });
 
-apiRouter.post('/cajas-chicas/vales/:valeId/liquidar', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/cajas-chicas/vales/:valeId/liquidar', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { valeId } = req.params;
   const {
     montoGastoReal,
@@ -2605,7 +2632,7 @@ apiRouter.post('/cajas-chicas/vales/:valeId/liquidar', middlewareAutenticacion, 
   }
 });
 
-apiRouter.post('/cajas-chicas/:id/reposicion', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/cajas-chicas/:id/reposicion', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const { montoReposicion, comprobanteReferencia, fechaDocumento, notas } = req.body;
 
@@ -2628,7 +2655,7 @@ apiRouter.post('/cajas-chicas/:id/reposicion', middlewareAutenticacion, (req: Au
   }
 });
 
-apiRouter.post('/cajas-chicas/:id/arqueo', middlewareAutenticacion, (req: AuthenticatedRequest, res: Response) => {
+apiRouter.post('/cajas-chicas/:id/arqueo', middlewareAutenticacion, requiereAdmin, (req: AuthenticatedRequest, res: Response) => {
   const { id } = req.params;
   const {
     efectivoContado,
@@ -3084,6 +3111,12 @@ apiRouter.post('/odometro/lecturas', middlewareAutenticacion, (req: Authenticate
   const vehiculo = db.vehiculos.find((v) => v.id === vehiculoId || v.placa === vehiculoId);
   if (!vehiculo) {
     res.status(404).json({ error: 'Vehículo no encontrado.' });
+    return;
+  }
+
+  // 🔒 SEGURIDAD: Solo ADMIN o el conductor asignado a ese vehículo pueden registrar la lectura
+  if (req.user?.rol === 'CONDUCTOR' && vehiculo.conductorId !== req.user?.userId) {
+    res.status(403).json({ error: 'No tienes permiso para registrar odómetro de este vehículo.' });
     return;
   }
 
