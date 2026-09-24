@@ -14,9 +14,12 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - DATA_DIR=/data
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - VITE_API_URL=${VITE_API_URL:-http://localhost:3000/api}
       - VITE_SITE_URL=${VITE_SITE_URL:-http://localhost:3000}
+    volumes:
+      - pagsurr-data:/data
     env_file:
       - .env
     healthcheck:
@@ -29,3 +32,7 @@ services:
       - no-new-privileges:true
     mem_limit: 1024m
     cpus: 1.0
+
+volumes:
+  pagsurr-data:
+

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { db } from './db';
+import { db, resolverRutaDataFile } from './db';
 import { SolicitudAutorizacion, Vehiculo, SaldoEstacion } from './types';
 
 describe('Protección Atómica contra Race Conditions y Duplicación de Saldos', () => {
@@ -283,5 +283,21 @@ describe('Protección Atómica contra Race Conditions y Duplicación de Saldos',
 
     // El saldo se descontó EXACTAMENTE UNA SOLA VEZ (100000 - 21000 = 79000, NUNCA 58000)
     expect(saldoEstacion.saldoActual).toBe(79000);
+  });
+});
+
+describe('Persistencia y Directorio de Datos DATA_DIR', () => {
+  it('db cuenta con método getRutaArchivo y retorna ruta que apunta a data.json', () => {
+    const ruta = db.getRutaArchivo();
+    expect(ruta).toBeDefined();
+    expect(typeof ruta).toBe('string');
+    expect(ruta).toContain('data.json');
+  });
+
+  it('resolverRutaDataFile resuelve adecuadamente la ruta del archivo data.json', () => {
+    const ruta = resolverRutaDataFile();
+    expect(ruta).toBeDefined();
+    expect(typeof ruta).toBe('string');
+    expect(ruta.endsWith('data.json')).toBe(true);
   });
 });

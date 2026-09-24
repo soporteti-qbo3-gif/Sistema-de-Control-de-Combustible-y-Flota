@@ -59,11 +59,30 @@ async function startServer() {
   // 🛡️ Configuración de proxy para entornos contenerizados (Cloud Run / Nginx)
   app.set('trust proxy', 1);
 
-  // 🔒 SEGURIDAD: Helmet configurado sin bloqueo de iframe para compatibilidad con AI Studio
+  // 🔒 SEGURIDAD: Helmet con Content Security Policy (CSP) robusta
+  const connectSources: string[] = [
+    "'self'",
+    config.VITE_SITE_URL?.replace(/\/$/, ''),
+    'https://*.run.app',
+    'https://generativelanguage.googleapis.com',
+    'https://api.resend.com',
+  ].filter(Boolean) as string[];
+
   app.use(
     helmet({
-      frameguard: false, // Desactiva X-Frame-Options para permitir visualización en AI Studio
-      contentSecurityPolicy: false, // Permite incrustación en iFrame de AI Studio y carga de Google Fonts / Vite HMR
+      frameguard: false, // Mantenido en false para permitir embebido en la vista previa de AI Studio
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
+          styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+          fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+          imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+          connectSrc: connectSources,
+          objectSrc: ["'none'"],
+          frameAncestors: ["'self'", 'https://*.google.com', 'https://*.run.app'],
+        },
+      },
       crossOriginEmbedderPolicy: false,
       crossOriginOpenerPolicy: false,
       crossOriginResourcePolicy: false,

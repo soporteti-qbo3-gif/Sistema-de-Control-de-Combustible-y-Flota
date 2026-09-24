@@ -51,6 +51,12 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=builder --chown=pagsurr:nodejs /app/dist ./dist
 COPY --from=builder --chown=pagsurr:nodejs /app/dist-server ./dist-server
 COPY --from=builder --chown=pagsurr:nodejs /app/server ./server
+COPY --from=builder --chown=pagsurr:nodejs /app/data.json ./data.json
+
+# Crear directorio de datos persistente con permisos para el usuario pagsurr
+RUN mkdir -p /data && chown pagsurr:nodejs /data
+
+ENV DATA_DIR=/data
 
 # Asignar propiedad de archivos al usuario sin privilegios
 USER pagsurr

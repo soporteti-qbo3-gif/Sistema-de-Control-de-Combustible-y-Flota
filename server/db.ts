@@ -28,9 +28,28 @@ import {
 } from './types';
 import { procesarMetricasCarga } from './calculos';
 import { logAudit, AuditLog, audit_logs } from './audit';
+import { config } from './config';
 
-// 🧠 LÓGICA: Ruta física del archivo local de persistencia data.json
-const DATA_FILE = path.join(process.cwd(), 'data.json');
+// 🧠 LÓGICA: Ruta física del archivo local de persistencia data.json respetando DATA_DIR y DATA_FILE de la configuración
+export function resolverRutaDataFile(): string {
+  if (config.DATA_FILE && config.DATA_FILE.trim() !== '') {
+    return path.resolve(config.DATA_FILE);
+  }
+  if (config.DATA_DIR && config.DATA_DIR.trim() !== '') {
+    const dir = path.resolve(config.DATA_DIR);
+    if (!fs.existsSync(dir)) {
+      try {
+        fs.mkdirSync(dir, { recursive: true });
+      } catch (err) {
+        console.error(`Error al crear directorio DATA_DIR (${dir}):`, err);
+      }
+    }
+    return path.join(dir, 'data.json');
+  }
+  return path.join(process.cwd(), 'data.json');
+}
+
+const DATA_FILE = resolverRutaDataFile();
 
 // Generador de imágenes muestra SVG en Base64 para facturas electrónicas y odómetros en Costa Rica
 export function generarTicketSvgBase64(estacion: string, litros: number, total: number, fecha: string, folio: string): string {
@@ -126,21 +145,46 @@ class BaseDeDatosFlota {
   private activeCargaLocks: Set<string> = new Set<string>();
 
   constructor() {
-    // 🧠 LÓGICA: Al iniciar la clase, se cargan los datos persistidos si el archivo data.json existe.
-    // Si no existe, se inicializan con el dataset base de demostración y se guardan inmediatamente.
+    // 🧠 LÓGICA: Al iniciar la clase, se cargan los datos persistidos si el archivo data.json existe en DATA_FILE.
+    // Si no existe, pero hay un archivo data.json en el directorio base (ej. /app/data.json de la imagen), se copia como seed.
     if (fs.existsSync(DATA_FILE)) {
       this.cargarDatos();
     } else {
-      this.inicializarDatos();
-      this.guardarDatos();
+      const fallbackFile = path.join(process.cwd(), 'data.json');
+      if (fallbackFile !== DATA_FILE && fs.existsSync(fallbackFile)) {
+        try {
+          const dir = path.dirname(DATA_FILE);
+          if (!fs.existsSync(dir)) {
+            fs.mkdirSync(dir, { recursive: true });
+          }
+          fs.copyFileSync(fallbackFile, DATA_FILE);
+          this.cargarDatos();
+        } catch (err) {
+          console.warn('No se pudo copiar el archivo seed a DATA_FILE, inicializando por defecto:', err);
+          this.inicializarDatos();
+          this.guardarDatos();
+        }
+      } else {
+        this.inicializarDatos();
+        this.guardarDatos();
+      }
     }
     // 🧠 LÓGICA: Se activa el mecanismo reactivo de auto-guardado que intercepta cualquier modificación en los arrays principales
     this.activarAutoPersistencia();
   }
 
+  // 🧠 LÓGICA: Retorna la ruta física de persistencia actualmente configurada
+  public getRutaArchivo(): string {
+    return DATA_FILE;
+  }
+
   // 🧠 LÓGICA: Guarda automáticamente el estado actual de la flota en data.json usando fs.writeFileSync de forma atómica y consistente
   public guardarDatos(): void {
     try {
+      const dir = path.dirname(DATA_FILE);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
       const estado = {
         usuarios: this.usuarios,
         vehiculos: this.vehiculos,
@@ -159,7 +203,7 @@ class BaseDeDatosFlota {
       };
       fs.writeFileSync(DATA_FILE, JSON.stringify(estado, null, 2), 'utf-8');
     } catch (error) {
-      console.error('Error al guardar datos en data.json:', error);
+      console.error(`Error al guardar datos en ${DATA_FILE}:`, error);
     }
   }
 
