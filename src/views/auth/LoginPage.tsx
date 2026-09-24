@@ -327,44 +327,6 @@ export const LoginPage: React.FC = () => {
               )}
 
               <form onSubmit={handleSubmitLogin} className="space-y-4">
-                {/* Atajos de Credenciales Demo / Evaluación */}
-                <div className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200/80 dark:border-slate-800 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
-                      Credenciales de evaluación:
-                    </span>
-                    <span className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium">
-                      Clic para autocompletar
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('admin@flota.com');
-                        setPassword('AdminFlota2026!');
-                        setErrorLogin(null);
-                      }}
-                      className="text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors cursor-pointer"
-                    >
-                      <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Administrador</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">admin@flota.com</p>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('carlos.mendoza@flota.com');
-                        setPassword('Conductor2026!');
-                        setErrorLogin(null);
-                      }}
-                      className="text-left p-2 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-white dark:bg-slate-800 hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors cursor-pointer"
-                    >
-                      <p className="text-[11px] font-bold text-slate-800 dark:text-slate-200">Conductor</p>
-                      <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate">carlos.mendoza...</p>
-                    </button>
-                  </div>
-                </div>
-
                 {/* Campo Correo Electrónico */}
                 <div>
                   <label

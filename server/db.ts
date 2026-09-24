@@ -250,28 +250,32 @@ class BaseDeDatosFlota {
   public inicializarDatos() {
     // 1. Usuarios
     let adminPassword = process.env.ADMIN_SEED_PASSWORD;
-    let adminDebeCambiar = false;
+    let adminDebeCambiar = true;
     let adminTempPassword: string | undefined = undefined;
 
     if (!adminPassword || adminPassword.trim() === '') {
-      adminPassword = 'AdminFlota2026!';
-      adminDebeCambiar = false;
+      adminPassword = crypto.randomBytes(9).toString('base64url');
+      adminDebeCambiar = true;
+      adminTempPassword = adminPassword;
       console.log('================================================================');
-      console.log('🔑 [SEGURIDAD] ADMINISTRADOR PRINCIPAL CONFIGURADO');
+      console.log('🔑 [SEGURIDAD] ADMINISTRADOR PRINCIPAL INICIALIZADO');
       console.log('Usuario: admin@flota.com');
-      console.log('Contraseña: AdminFlota2026!');
+      console.log(`Contraseña Temporal Generada: ${adminPassword}`);
+      console.log('⚠️ AVISO: Inicie sesión y cambie esta contraseña inmediatamente.');
       console.log('================================================================');
     } else {
+      adminDebeCambiar = true;
       console.log('================================================================');
       console.log('🔑 [SEGURIDAD] ADMINISTRADOR PRINCIPAL CONFIGURADO');
       console.log('Usuario: admin@flota.com');
       console.log('Autenticación mediante ADMIN_SEED_PASSWORD configurada en entorno.');
+      console.log('⚠️ AVISO: Inicie sesión y cambie esta contraseña inmediatamente.');
       console.log('================================================================');
     }
 
     const exp72h = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
-    const cond1Pass = 'Conductor2026!';
+    const cond1Pass = crypto.randomBytes(9).toString('base64url');
     const cond2Pass = crypto.randomBytes(9).toString('base64url');
     const cond3Pass = crypto.randomBytes(9).toString('base64url');
 
@@ -285,7 +289,7 @@ class BaseDeDatosFlota {
         debeCambiarPassword: adminDebeCambiar,
         passwordHash: bcrypt.hashSync(adminPassword, 10),
         tempPassword: adminTempPassword,
-        tempPasswordExpiracion: adminDebeCambiar ? exp72h : undefined,
+        tempPasswordExpiracion: exp72h,
         telefonoContacto: '+506 8876-5432',
         telefonoWhatsapp: '+506 8876-5432',
         activo: true,

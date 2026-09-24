@@ -70,12 +70,18 @@ async function startServer() {
     })
   );
 
-  // 🔒 SEGURIDAD: CORS configurado para admitir peticiones del entorno Cloud Run y desarrollo local
+  // 🔒 SEGURIDAD: Restricción estricta de CORS con allowlist controlada (VITE_SITE_URL y Cloud Run)
+  const allowedOrigins: (string | RegExp)[] = [
+    config.VITE_SITE_URL?.replace(/\/$/, ''),
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    /^https:\/\/([a-zA-Z0-9-]+\.)*run\.app$/,
+  ].filter(Boolean);
+
   app.use(
     cors({
-      origin: true,
+      origin: allowedOrigins,
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
-      credentials: true,
     })
   );
 
