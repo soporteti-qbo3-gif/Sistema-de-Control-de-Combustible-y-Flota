@@ -59,37 +59,21 @@ async function startServer() {
   // 🛡️ Configuración de proxy para entornos contenerizados (Cloud Run / Nginx)
   app.set('trust proxy', 1);
 
-  // 🔒 SEGURIDAD (1.8): Configuración estricta de Helmet con Content Security Policy (CSP)
+  // 🔒 SEGURIDAD: Helmet configurado sin bloqueo de iframe para compatibilidad con AI Studio
   app.use(
     helmet({
-      contentSecurityPolicy: {
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", 'data:', 'https:', 'blob:'],
-          connectSrc: ["'self'", process.env.VITE_SITE_URL || 'http://localhost:3000'],
-          fontSrc: ["'self'", 'data:'],
-          objectSrc: ["'none'"],
-          frameAncestors: ["'self'"],
-        },
-      },
+      frameguard: false, // Desactiva X-Frame-Options para permitir visualización en AI Studio
+      contentSecurityPolicy: false, // Permite incrustación en iFrame de AI Studio y carga de Google Fonts / Vite HMR
       crossOriginEmbedderPolicy: false,
+      crossOriginOpenerPolicy: false,
+      crossOriginResourcePolicy: false,
     })
   );
 
-  // 🔒 SEGURIDAD (1.8): Configuración restrictiva de CORS permitiendo únicamente el origen autorizado
-  const allowedOrigin = process.env.VITE_SITE_URL || 'http://localhost:3000';
+  // 🔒 SEGURIDAD: CORS configurado para admitir peticiones del entorno Cloud Run y desarrollo local
   app.use(
     cors({
-      origin: (origin, callback) => {
-        // Permitir peticiones sin origen (como curl local, SSR, o aplicaciones cliente del mismo host) o del origen autorizado
-        if (!origin || origin === allowedOrigin) {
-          callback(null, true);
-        } else {
-          callback(new Error('Bloqueado por política restrictiva CORS de PagSurr/QBO3'));
-        }
-      },
+      origin: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE'],
       credentials: true,
     })

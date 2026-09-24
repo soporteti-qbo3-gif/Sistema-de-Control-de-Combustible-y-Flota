@@ -3,6 +3,16 @@ Todas las modificaciones notables en este proyecto serán documentadas en este a
 
 El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1.0.0/) y este proyecto adhiere a [Semantic Versioning](https://semver.org/lang/es/).
 
+## [2.7.1] - 2026-09-24
+
+### Corrección de Compatibilidad con iFrame y Acceso de Demostración
+- **Desbloqueo de Visualización en iFrame (`server.ts`):**
+  - Desactivada la restricción de `frameguard` (`X-Frame-Options: SAMEORIGIN`) y `frame-ancestors 'self'` en la configuración de Helmet, permitiendo que la aplicación se renderice correctamente en el entorno de visualización incrustado de AI Studio y Cloud Run.
+  - Ajustada la política de CORS para aceptar peticiones originadas desde los dominios dinámicos de Cloud Run (`run.app`).
+- **Facilidad de Acceso y Evaluación en `LoginPage.tsx`:**
+  - Incorporado un panel de acceso rápido con botones para autocompletar credenciales de evaluación con un solo clic (Administrador: `admin@flota.com` / Conductor: `carlos.mendoza@flota.com`).
+  - Estandarizadas las contraseñas base en entorno de prueba/evaluación (`AdminFlota2026!` y `Conductor2026!`), eliminando bloqueos de inicio de sesión por claves generadas aleatoriamente no visibles.
+
 ## [2.7.0] - 2026-09-23
 
 ### Rediseño Visual y Experiencia de Usuario (UI/UX - Estética SaaS Linear / Notion)

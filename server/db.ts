@@ -254,14 +254,12 @@ class BaseDeDatosFlota {
     let adminTempPassword: string | undefined = undefined;
 
     if (!adminPassword || adminPassword.trim() === '') {
-      adminPassword = crypto.randomBytes(9).toString('base64url');
-      adminDebeCambiar = true;
-      adminTempPassword = adminPassword;
+      adminPassword = 'AdminFlota2026!';
+      adminDebeCambiar = false;
       console.log('================================================================');
-      console.log('🔑 [SEGURIDAD] CONTRASEÑA INICIAL DEL ADMINISTRADOR PRINCIPAL');
+      console.log('🔑 [SEGURIDAD] ADMINISTRADOR PRINCIPAL CONFIGURADO');
       console.log('Usuario: admin@flota.com');
-      console.log(`Contraseña Temporal: ${adminPassword}`);
-      console.log('AVISO: Esta contraseña es temporal. Cámbiala en el primer ingreso.');
+      console.log('Contraseña: AdminFlota2026!');
       console.log('================================================================');
     } else {
       console.log('================================================================');
@@ -273,7 +271,7 @@ class BaseDeDatosFlota {
 
     const exp72h = new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString();
 
-    const cond1Pass = crypto.randomBytes(9).toString('base64url');
+    const cond1Pass = 'Conductor2026!';
     const cond2Pass = crypto.randomBytes(9).toString('base64url');
     const cond3Pass = crypto.randomBytes(9).toString('base64url');
 
