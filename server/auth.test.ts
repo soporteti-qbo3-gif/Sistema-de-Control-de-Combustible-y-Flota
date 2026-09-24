@@ -1,6 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import { db } from './db';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { Response, NextFunction } from 'express';
+import { verificarToken, middlewareAutenticacion, AuthenticatedRequest } from './auth';
+import { JWT_SECRET } from './config';
 
 describe('Sistema de Autenticación y Seguridad', () => {
   it('crearAdmin genera contraseña temporal aleatoria segura si no se proporciona', async () => {
@@ -90,5 +94,52 @@ describe('Sistema de Autenticación y Seguridad', () => {
     // La clave temporal vieja ya no debe funcionar
     const loginViejo = await db.validarPassword(usuario, tempPass);
     expect(loginViejo).toBe(false);
+  });
+
+  it('token expirado devuelve null en verificarToken y es rechazado con 401 por middlewareAutenticacion', () => {
+    const payload = {
+      id: 'usr-test-exp',
+      userId: 'usr-test-exp',
+      email: 'expirado@flota.com',
+      rol: 'CONDUCTOR' as const,
+      nombre: 'Conductor Expirado',
+    };
+    const expiredToken = jwt.sign(payload, JWT_SECRET, { expiresIn: '-10s' });
+
+    // 1. verificarToken debe devolver null sin excepciones
+    const resultado = verificarToken(expiredToken);
+    expect(resultado).toBeNull();
+
+    // 2. middlewareAutenticacion debe rechazar el token con código HTTP 401
+    const req = {
+      headers: {
+        authorization: `Bearer ${expiredToken}`,
+      },
+    } as unknown as AuthenticatedRequest;
+
+    let statusCode: number | null = null;
+    let jsonBody: any = null;
+    let nextLlamado = false;
+
+    const res = {
+      status: (code: number) => {
+        statusCode = code;
+        return {
+          json: (data: any) => {
+            jsonBody = data;
+          },
+        };
+      },
+    } as unknown as Response;
+
+    const next = (() => {
+      nextLlamado = true;
+    }) as NextFunction;
+
+    middlewareAutenticacion(req, res, next);
+
+    expect(statusCode).toBe(401);
+    expect(nextLlamado).toBe(false);
+    expect(jsonBody?.error).toContain('Token expirado o no válido');
   });
 });

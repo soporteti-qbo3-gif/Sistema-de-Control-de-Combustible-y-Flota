@@ -7,12 +7,7 @@ import jwt from 'jsonwebtoken';
 import { Request, Response, NextFunction } from 'express';
 import { Usuario } from './types';
 import { db } from './db';
-
-// 🔒 SEGURIDAD: Usar variable de entorno JWT_SECRET con fallback seguro en desarrollo para evitar caída del servidor
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠️ [AUTH] JWT_SECRET no está definida en las variables de entorno. Se utiliza clave segura por defecto para desarrollo.');
-}
-const JWT_SECRET: string = process.env.JWT_SECRET || 'flota_control_jwt_super_secret_2026';
+import { JWT_SECRET } from './config';
 
 export interface TokenPayload {
   id?: string;
@@ -64,18 +59,7 @@ export function verificarToken(token: string): TokenPayload | null {
   try {
     // 🔒 SEGURIDAD: Verificación de firma criptográfica mediante JWT_SECRET
     return jwt.verify(token, JWT_SECRET) as TokenPayload;
-  } catch (error: any) {
-    // Si el token solo expiró pero fue firmado por este servidor con clave válida
-    if (error?.name === 'TokenExpiredError') {
-      try {
-        const decoded = jwt.verify(token, JWT_SECRET, { ignoreExpiration: true }) as TokenPayload;
-        if (decoded && (decoded.userId || decoded.id || decoded.email)) {
-          return decoded;
-        }
-      } catch {
-        // Fallback defensivo
-      }
-    }
+  } catch {
     return null;
   }
 }
